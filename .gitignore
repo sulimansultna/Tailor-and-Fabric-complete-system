@@ -60,3 +60,9 @@ build/
 .env
 .env.*
 
+
+.dart-cli-config/
+.codex_runtime/
+.dart_tool/
+build/
+tmp/

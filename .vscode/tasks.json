@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Preview responsive Windows layouts",
+			"type": "shell",
+			"command": "& 'C:\\flutter_windows_3.47.4-stable\\flutter\\bin\\flutter.bat' run -d windows -t tmp/responsive_preview.dart",
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}
