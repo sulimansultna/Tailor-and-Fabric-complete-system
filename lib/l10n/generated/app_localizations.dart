@@ -2099,6 +2099,18 @@ abstract class AppLocalizations {
   /// **'Fabric'**
   String get fabricName;
 
+  /// No description provided for @fabricSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search by fabric ID, code, or name'**
+  String get fabricSearchHint;
+
+  /// No description provided for @fabricSearchEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No fabrics match this search.'**
+  String get fabricSearchEmpty;
+
   /// No description provided for @customerOptionalPaid.
   ///
   /// In en, this message translates to:
@@ -5236,6 +5248,360 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Profit per meter is the current selling price minus the saved buying price for each active fabric. This current price comparison is not limited to the selected date range. Earned fabric profit continues to use recorded transaction prices and costs.'**
   String get reportFabricPriceProfitNote;
+
+  /// No description provided for @dashTodayOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s orders'**
+  String get dashTodayOrders;
+
+  /// No description provided for @dashTodayOrdersHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Received today'**
+  String get dashTodayOrdersHint;
+
+  /// No description provided for @dashReadyCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready for collection'**
+  String get dashReadyCollection;
+
+  /// No description provided for @dashReadyCollectionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the customer'**
+  String get dashReadyCollectionHint;
+
+  /// No description provided for @dashCustomerDue.
+  ///
+  /// In en, this message translates to:
+  /// **'Customer amounts due'**
+  String get dashCustomerDue;
+
+  /// No description provided for @dashCustomerDueHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Current outstanding balances'**
+  String get dashCustomerDueHint;
+
+  /// No description provided for @dashSupplierDue.
+  ///
+  /// In en, this message translates to:
+  /// **'Supplier amounts due'**
+  String get dashSupplierDue;
+
+  /// No description provided for @dashSupplierDueHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Current outstanding balances'**
+  String get dashSupplierDueHint;
+
+  /// No description provided for @dashFabricAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Available fabric'**
+  String get dashFabricAvailable;
+
+  /// No description provided for @dashFabricAvailableHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Meters on hand now'**
+  String get dashFabricAvailableHint;
+
+  /// No description provided for @dashNetProfit.
+  ///
+  /// In en, this message translates to:
+  /// **'Net profit'**
+  String get dashNetProfit;
+
+  /// No description provided for @dashNetProfitHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected period, after recorded costs'**
+  String get dashNetProfitHint;
+
+  /// No description provided for @dashProfitUnavailableShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get dashProfitUnavailableShort;
+
+  /// No description provided for @dashProfitUnavailableHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Record missing fabric costs before net profit can be calculated'**
+  String get dashProfitUnavailableHint;
+
+  /// No description provided for @dashNothingDue.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing due now'**
+  String get dashNothingDue;
+
+  /// No description provided for @dashPeriodToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get dashPeriodToday;
+
+  /// No description provided for @dashPeriodMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'This month'**
+  String get dashPeriodMonth;
+
+  /// No description provided for @dashPeriodYear.
+  ///
+  /// In en, this message translates to:
+  /// **'This year'**
+  String get dashPeriodYear;
+
+  /// No description provided for @dashPeriodScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Today and current balances do not change with this period. Profit follows it.'**
+  String get dashPeriodScope;
+
+  /// No description provided for @dashBadgeToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get dashBadgeToday;
+
+  /// No description provided for @dashBadgePeriod.
+  ///
+  /// In en, this message translates to:
+  /// **'Period'**
+  String get dashBadgePeriod;
+
+  /// No description provided for @dashBadgeBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'Balance'**
+  String get dashBadgeBalance;
+
+  /// No description provided for @dashMoreFigures.
+  ///
+  /// In en, this message translates to:
+  /// **'More figures'**
+  String get dashMoreFigures;
+
+  /// No description provided for @dashSearchCustomersOrBills.
+  ///
+  /// In en, this message translates to:
+  /// **'Search customers or bills'**
+  String get dashSearchCustomersOrBills;
+
+  /// No description provided for @dashSearchCustomersOrBillsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Name, phone, customer ID, or bill number'**
+  String get dashSearchCustomersOrBillsHint;
+
+  /// No description provided for @dashBills.
+  ///
+  /// In en, this message translates to:
+  /// **'Bills'**
+  String get dashBills;
+
+  /// No description provided for @dashFindCustomer.
+  ///
+  /// In en, this message translates to:
+  /// **'Find customer'**
+  String get dashFindCustomer;
+
+  /// No description provided for @dashPurchaseFabric.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchase fabric'**
+  String get dashPurchaseFabric;
+
+  /// No description provided for @dashTodayDeliveries.
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s deliveries'**
+  String get dashTodayDeliveries;
+
+  /// No description provided for @dashEmptyToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing is due for handover today.'**
+  String get dashEmptyToday;
+
+  /// No description provided for @dashRecentOrders.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent orders'**
+  String get dashRecentOrders;
+
+  /// No description provided for @dashEmptyRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'No orders yet. Create the first order to see it here.'**
+  String get dashEmptyRecent;
+
+  /// No description provided for @dashLowFabric.
+  ///
+  /// In en, this message translates to:
+  /// **'Fabric needing attention'**
+  String get dashLowFabric;
+
+  /// No description provided for @dashLowLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Low stock'**
+  String get dashLowLabel;
+
+  /// No description provided for @dashEmptyLowFabric.
+  ///
+  /// In en, this message translates to:
+  /// **'No fabric is at or below its alert level.'**
+  String get dashEmptyLowFabric;
+
+  /// No description provided for @dashProfitChart.
+  ///
+  /// In en, this message translates to:
+  /// **'Profit for the selected period'**
+  String get dashProfitChart;
+
+  /// No description provided for @dashOrdersChart.
+  ///
+  /// In en, this message translates to:
+  /// **'Orders over time'**
+  String get dashOrdersChart;
+
+  /// No description provided for @dashNoOrdersInPeriod.
+  ///
+  /// In en, this message translates to:
+  /// **'No orders in this period.'**
+  String get dashNoOrdersInPeriod;
+
+  /// No description provided for @dashProfitNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Net profit is fabric profit plus stitching revenue, minus posted expenses. Stitching revenue is not stitching profit.'**
+  String get dashProfitNote;
+
+  /// No description provided for @dashGrossUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Gross and net profit stay hidden until every fabric cost is recorded.'**
+  String get dashGrossUnavailable;
+
+  /// No description provided for @dashProfileAddDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Not added yet'**
+  String get dashProfileAddDetail;
+
+  /// No description provided for @dashProfileEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add the shop name, phone, and address. They appear here and on printed receipts.'**
+  String get dashProfileEmptyHint;
+
+  /// No description provided for @dashAmountDue.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount due'**
+  String get dashAmountDue;
+
+  /// No description provided for @dashPaid.
+  ///
+  /// In en, this message translates to:
+  /// **'Paid'**
+  String get dashPaid;
+
+  /// No description provided for @dashCashCollected.
+  ///
+  /// In en, this message translates to:
+  /// **'Cash collected'**
+  String get dashCashCollected;
+
+  /// No description provided for @dashLoadingFigures.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading figures'**
+  String get dashLoadingFigures;
+
+  /// No description provided for @dashInsightFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Profit figures could not be loaded.'**
+  String get dashInsightFailed;
+
+  /// No description provided for @profileShopIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Shop identity'**
+  String get profileShopIdentity;
+
+  /// No description provided for @profileContactDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact details'**
+  String get profileContactDetails;
+
+  /// No description provided for @profileLogoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Shop logo'**
+  String get profileLogoTitle;
+
+  /// No description provided for @profileChoosePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose photo'**
+  String get profileChoosePhoto;
+
+  /// No description provided for @profileChangePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Change photo'**
+  String get profileChangePhoto;
+
+  /// No description provided for @profileRemovePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get profileRemovePhoto;
+
+  /// No description provided for @profileLogoHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Used on the dashboard and on printed receipts.'**
+  String get profileLogoHint;
+
+  /// No description provided for @profileFieldRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the shop name.'**
+  String get profileFieldRequired;
+
+  /// No description provided for @profileSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Shop profile saved'**
+  String get profileSaved;
+
+  /// No description provided for @profileSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the shop profile.'**
+  String get profileSaveFailed;
+
+  /// No description provided for @profileInvalidLogo.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a PNG, JPG, JPEG, or WebP image.'**
+  String get profileInvalidLogo;
+
+  /// No description provided for @profileLogoPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Logo preview'**
+  String get profileLogoPreview;
 }
 
 class _AppLocalizationsDelegate

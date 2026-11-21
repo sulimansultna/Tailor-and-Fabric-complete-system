@@ -326,11 +326,8 @@ class AppCommandRegistry extends ChangeNotifier {
                   commandText(ctx, help ? CommandKey.help : CommandKey.palette),
                 ),
                 content: SizedBox(
-                  width: 640,
-                  height: (MediaQuery.sizeOf(ctx).height - 220).clamp(
-                    140.0,
-                    560.0,
-                  ),
+                  width: fitContentWidth(ctx, help ? 860 : 640),
+                  height: fitContentHeight(ctx, help ? 640 : 560, gutter: 180),
                   child: Column(
                     children: [
                       TextField(
@@ -340,11 +337,21 @@ class AppCommandRegistry extends ChangeNotifier {
                         autofocus: true,
                         decoration: InputDecoration(
                           prefixIcon: const Icon(Icons.search),
+                          filled: true,
+                          fillColor: Theme.of(ctx).brightness == Brightness.dark
+                              ? const Color(0xff16343a)
+                              : const Color(0xffe5f4f6),
                           labelText: localizedCommandText(
                             ctx,
-                            'Search commands or shortcuts',
-                            'امرونه یا لنډلارې ولټوئ',
-                            'جستجوی فرمان‌ها یا میان‌برها',
+                            help
+                                ? 'Search the shortcut table'
+                                : 'Search commands or shortcuts',
+                            help
+                                ? 'د لنډلارو جدول ولټوئ'
+                                : 'امرونه یا لنډلارې ولټوئ',
+                            help
+                                ? 'جستجو در جدول میان‌برها'
+                                : 'جستجوی فرمان‌ها یا میان‌برها',
                           ),
                         ),
                         onChanged: (_) => rebuild(() {}),
@@ -357,29 +364,34 @@ class AppCommandRegistry extends ChangeNotifier {
                       ),
                       const SizedBox(height: 8),
                       Expanded(
-                        child: ListView.builder(
-                          itemCount: matches.length,
-                          itemBuilder: (ctx, index) {
-                            final entry = matches[index];
-                            return ListTile(
-                              dense: true,
-                              title: Text(entry.value.$1),
-                              subtitle: entry.value.$3 == null
-                                  ? null
-                                  : Text(entry.value.$3!),
-                              trailing: entry.value.$2 == null
-                                  ? null
-                                  : Text(
-                                      entry.value.$2!,
-                                      textDirection: TextDirection.ltr,
-                                    ),
-                              enabled: entry.value.$3 == null,
-                              onTap: entry.value.$3 == null
-                                  ? () => Navigator.pop(ctx, entry.key)
-                                  : null,
-                            );
-                          },
-                        ),
+                        child: help
+                            ? _ShortcutHelpTable(
+                                rows: matches,
+                                onOpen: (id) => Navigator.pop(ctx, id),
+                              )
+                            : ListView.builder(
+                                itemCount: matches.length,
+                                itemBuilder: (ctx, index) {
+                                  final entry = matches[index];
+                                  return ListTile(
+                                    dense: true,
+                                    title: Text(entry.value.$1),
+                                    subtitle: entry.value.$3 == null
+                                        ? null
+                                        : Text(entry.value.$3!),
+                                    trailing: entry.value.$2 == null
+                                        ? null
+                                        : Text(
+                                            entry.value.$2!,
+                                            textDirection: TextDirection.ltr,
+                                          ),
+                                    enabled: entry.value.$3 == null,
+                                    onTap: entry.value.$3 == null
+                                        ? () => Navigator.pop(ctx, entry.key)
+                                        : null,
+                                  );
+                                },
+                              ),
                       ),
                     ],
                   ),
@@ -413,6 +425,184 @@ class AppCommandRegistry extends ChangeNotifier {
     _disposed = true;
     _registrations.clear();
     super.dispose();
+  }
+}
+
+class _ShortcutHelpTable extends StatelessWidget {
+  const _ShortcutHelpTable({required this.rows, required this.onOpen});
+
+  final List<MapEntry<String, (String, String?, String?)>> rows;
+  final ValueChanged<String> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final shortcut = localizedCommandText(context, 'Shortcut', 'لنډلار', 'میان‌بر');
+    final action = localizedCommandText(context, 'What it does', 'څه کوي', 'کار آن');
+    final status = localizedCommandText(
+      context,
+      'On this screen',
+      'په دې پاڼه',
+      'در این صفحه',
+    );
+    final ready = localizedCommandText(context, 'Ready', 'چمتو', 'آماده');
+    if (rows.isEmpty) {
+      return Center(
+        child: Text(
+          localizedCommandText(
+            context,
+            'No shortcut matches that search.',
+            'د دې لټون لنډلار ونه موندل شوه.',
+            'میان‌بری برای این جستجو پیدا نشد.',
+          ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 560;
+        return Column(
+          children: [
+            if (!stacked)
+              _ShortcutHeader(shortcut: shortcut, action: action, status: status),
+            Expanded(
+              child: ListView.builder(
+                key: const ValueKey('shortcut-help-table'),
+                itemCount: rows.length,
+                itemBuilder: (context, index) {
+                  final row = rows[index];
+                  final available = row.value.$3 == null;
+                  final keys = row.value.$2 ?? '—';
+                  final tone = available
+                      ? (Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xff4ade80)
+                            : const Color(0xff15803d))
+                      : (Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xfffdba74)
+                            : const Color(0xffc2410c));
+                  final details = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        row.value.$1,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        available ? ready : row.value.$3!,
+                        style: TextStyle(
+                          color: tone,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  );
+                  return Material(
+                    color: index.isEven
+                        ? scheme.surfaceContainerLow
+                        : scheme.surface,
+                    child: InkWell(
+                      onTap: available ? () => onOpen(row.key) : null,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        child: stacked
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _ShortcutChip(label: keys),
+                                  const SizedBox(height: 6),
+                                  details,
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  SizedBox(
+                                    width: 148,
+                                    child: _ShortcutChip(label: keys),
+                                  ),
+                                  Expanded(flex: 3, child: details),
+                                ],
+                              ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ShortcutHeader extends StatelessWidget {
+  const _ShortcutHeader({
+    required this.shortcut,
+    required this.action,
+    required this.status,
+  });
+
+  final String shortcut;
+  final String action;
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w800,
+      fontSize: 12,
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(width: 148, child: Text(shortcut, style: style)),
+          Expanded(flex: 3, child: Text('$action · $status', style: style)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShortcutChip extends StatelessWidget {
+  const _ShortcutChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .12),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: .45)),
+        ),
+        child: Text(
+          label,
+          textDirection: TextDirection.ltr,
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
   }
 }
 

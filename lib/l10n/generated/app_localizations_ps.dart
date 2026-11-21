@@ -1062,6 +1062,12 @@ class AppLocalizationsPs extends AppLocalizations {
   String get fabricName => 'ټوکر';
 
   @override
+  String get fabricSearchHint => 'د ټوکر د پېژندشمېرې، کوډ یا نوم له مخې ولټوئ';
+
+  @override
+  String get fabricSearchEmpty => 'له دې لټون سره برابر ټوکر ونه موندل شو.';
+
+  @override
   String get customerOptionalPaid =>
       'پېرودونکی (د بشپړې تادیې پلور لپاره اختیاري)';
 
@@ -2774,4 +2780,187 @@ class AppLocalizationsPs extends AppLocalizations {
   @override
   String get reportFabricPriceProfitNote =>
       'د هر متر ګټه د هر فعال ټوکر د اوسني پلور بیې څخه د ثبت شوې پېرود بیې په منفي کولو حسابېږي. دا د اوسنیو بیو پرتله ده او د ټاکل شوې نېټې مودې پورې محدوده نه ده. د ټوکر ترلاسه شوې ګټه لا هم د معاملې د ثبت شویو بیو او لګښتونو له مخې حسابېږي.';
+
+  @override
+  String get dashTodayOrders => 'ننني فرمایشونه';
+
+  @override
+  String get dashTodayOrdersHint => 'نن ترلاسه شوي';
+
+  @override
+  String get dashReadyCollection => 'د اخیستلو لپاره چمتو';
+
+  @override
+  String get dashReadyCollectionHint => 'پېرودونکی یې انتظار کوي';
+
+  @override
+  String get dashCustomerDue => 'د پېرودونکو پاتې پیسې';
+
+  @override
+  String get dashCustomerDueHint => 'اوسني پاتې حسابونه';
+
+  @override
+  String get dashSupplierDue => 'د عرضه کوونکو پاتې پیسې';
+
+  @override
+  String get dashSupplierDueHint => 'اوسني پاتې حسابونه';
+
+  @override
+  String get dashFabricAvailable => 'موجود ټوکر';
+
+  @override
+  String get dashFabricAvailableHint => 'اوسني متره';
+
+  @override
+  String get dashNetProfit => 'خالصه ګټه';
+
+  @override
+  String get dashNetProfitHint => 'ټاکلې موده، له ثبت شویو لګښتونو وروسته';
+
+  @override
+  String get dashProfitUnavailableShort => 'نه ده معلومه';
+
+  @override
+  String get dashProfitUnavailableHint =>
+      'د خالصې ګټې لپاره د ټوکر لګښت ثبت کړئ';
+
+  @override
+  String get dashNothingDue => 'اوس پاتې پیسې نشته';
+
+  @override
+  String get dashPeriodToday => 'نن';
+
+  @override
+  String get dashPeriodMonth => 'دا میاشت';
+
+  @override
+  String get dashPeriodYear => 'دا کال';
+
+  @override
+  String get dashPeriodScope =>
+      'ننني شمېرې او اوسني پاتې حسابونه له دې مودې نه بدلیږي. ګټه له همدې مودې سره حسابېږي.';
+
+  @override
+  String get dashBadgeToday => 'نن';
+
+  @override
+  String get dashBadgePeriod => 'موده';
+
+  @override
+  String get dashBadgeBalance => 'پاتې حساب';
+
+  @override
+  String get dashMoreFigures => 'نورې شمېرې';
+
+  @override
+  String get dashSearchCustomersOrBills => 'پېرودونکي یا بلونه ولټوئ';
+
+  @override
+  String get dashSearchCustomersOrBillsHint =>
+      'نوم، موبایل، پېژندپاڼه، یا د بل شمېره';
+
+  @override
+  String get dashBills => 'بلونه';
+
+  @override
+  String get dashFindCustomer => 'پېرودونکی ومومئ';
+
+  @override
+  String get dashPurchaseFabric => 'ټوکر وپیرئ';
+
+  @override
+  String get dashTodayDeliveries => 'نننۍ سپارښتنې';
+
+  @override
+  String get dashEmptyToday => 'نن د سپارلو لپاره څه نشته.';
+
+  @override
+  String get dashRecentOrders => 'وروستي فرمایشونه';
+
+  @override
+  String get dashEmptyRecent => 'لا فرمایش نشته. لومړی فرمایش جوړ کړئ.';
+
+  @override
+  String get dashLowFabric => 'ټوکر چې پاملرنې ته اړتیا لري';
+
+  @override
+  String get dashLowLabel => 'لږ پاتې';
+
+  @override
+  String get dashEmptyLowFabric => 'هیڅ ټوکر د خبرتیا کچې ته نه دی رسېدلی.';
+
+  @override
+  String get dashProfitChart => 'د ټاکلې مودې ګټه';
+
+  @override
+  String get dashOrdersChart => 'فرمایشونه د وخت له مخې';
+
+  @override
+  String get dashNoOrdersInPeriod => 'په دې موده کې فرمایش نشته.';
+
+  @override
+  String get dashProfitNote =>
+      'خالصه ګټه د ټوکر ګټه جمع د ګنډلو عاید، منفي ثبت شوي لګښتونه دي. د ګنډلو عاید د ګنډلو ګټه نه ده.';
+
+  @override
+  String get dashGrossUnavailable =>
+      'تر هغه چې د ټوکر ټول لګښت ثبت شي، ناخالصه او خالصه ګټه نه ښودل کېږي.';
+
+  @override
+  String get dashProfileAddDetail => 'لا نه دی زیات شوی';
+
+  @override
+  String get dashProfileEmptyHint =>
+      'د دوکان نوم، تلیفون او پته زیاته کړئ. دلته او پر چاپ شویو رسیدونو ښکاري.';
+
+  @override
+  String get dashAmountDue => 'پاتې پیسې';
+
+  @override
+  String get dashPaid => 'ورکړل شوې';
+
+  @override
+  String get dashCashCollected => 'راټولې شوې نغدې';
+
+  @override
+  String get dashLoadingFigures => 'شمېرې لوډېږي';
+
+  @override
+  String get dashInsightFailed => 'د ګټې شمېرې ونه لوډ شوې.';
+
+  @override
+  String get profileShopIdentity => 'د دوکان پېژندنه';
+
+  @override
+  String get profileContactDetails => 'د اړیکې معلومات';
+
+  @override
+  String get profileLogoTitle => 'د دوکان نښه';
+
+  @override
+  String get profileChoosePhoto => 'انځور وټاکئ';
+
+  @override
+  String get profileChangePhoto => 'انځور بدل کړئ';
+
+  @override
+  String get profileRemovePhoto => 'لرې کړئ';
+
+  @override
+  String get profileLogoHint => 'پر ډشبورډ او چاپ شویو رسیدونو کارېږي.';
+
+  @override
+  String get profileFieldRequired => 'د دوکان نوم ولیکئ.';
+
+  @override
+  String get profileSaved => 'د دوکان پېژندنه وساتل شوه';
+
+  @override
+  String get profileSaveFailed => 'د دوکان پېژندنه ونه ساتل شوه.';
+
+  @override
+  String get profileInvalidLogo => 'PNG، JPG، JPEG یا WebP انځور وټاکئ.';
+
+  @override
+  String get profileLogoPreview => 'د نښې لید';
 }

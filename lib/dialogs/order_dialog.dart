@@ -208,9 +208,7 @@ Future<void> showOrderDialog(
           if (jsonEncode(draftData()) != initialDraftData && !await confirmCommandDiscard(dialogContext)) return;
           if (dialogContext.mounted) Navigator.pop(dialogContext);
         }
-        final dialogSize = ResponsiveLayout.dialogSize(dialogContext);
-        final width = dialogSize.width;
-        final height = dialogSize.height;
+        final width = MediaQuery.sizeOf(dialogContext).width;
         final locale = Localizations.localeOf(dialogContext).toLanguageTag();
         final total = totalValue();
         final fabricTotal = lines.fold<int>(
@@ -706,8 +704,11 @@ Future<void> showOrderDialog(
         Widget summary() => Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Theme.of(dialogContext).colorScheme.surfaceContainerHighest,
+            color: Theme.of(dialogContext).colorScheme.surface,
             borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: Theme.of(dialogContext).colorScheme.outlineVariant,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -813,42 +814,63 @@ Future<void> showOrderDialog(
         );
 
         final appTheme = Theme.of(dialogContext);
+        final isDark = appTheme.brightness == Brightness.dark;
+        final fieldFill = isDark
+            ? const Color(0xff16343a)
+            : const Color(0xffe5f4f6);
+        final fieldBorder = isDark
+            ? const Color(0xff5eead4)
+            : const Color(0xff087f8c);
         final dialogTheme = appTheme.copyWith(
           inputDecorationTheme: appTheme.inputDecorationTheme.copyWith(
             filled: true,
-            fillColor: appTheme.colorScheme.surfaceContainerLow,
+            fillColor: fieldFill,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 16,
+            ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: appTheme.colorScheme.outlineVariant,
-              ),
+              borderSide: BorderSide(color: fieldBorder.withValues(alpha: .55)),
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: fieldBorder.withValues(alpha: .55)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: appTheme.colorScheme.primary,
-                width: 1.8,
-              ),
+              borderSide: BorderSide(color: fieldBorder, width: 2),
             ),
           ),
         );
         return Theme(
           data: dialogTheme,
-          child: Dialog(
-            insetPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: SizedBox(
-              width: width,
-              height: height,
-              child: Column(
+          child: Dialog.fullscreen(
+            backgroundColor: appTheme.scaffoldBackgroundColor,
+            child: Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.all(12),
+                  Material(
+                    color: appTheme.colorScheme.surface,
+                    child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                     child: Row(
                       children: [
+                        OutlinedButton.icon(
+                          onPressed: saving ? null : closeOrder,
+                          icon: const Icon(Icons.arrow_back),
+                          label: Text(l10n.goBack),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(120, 48),
+                            backgroundColor: fieldFill,
+                            foregroundColor: appTheme.colorScheme.primary,
+                            side: BorderSide(color: fieldBorder, width: 1.6),
+                            textStyle: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
                         Container(
                           width: 48,
                           height: 48,
@@ -914,14 +936,8 @@ Future<void> showOrderDialog(
                           onPressed: () => moveTextFocus(1),
                           icon: const Icon(Icons.keyboard_arrow_down),
                         ),
-                        IconButton(
-                          tooltip: l10n.close,
-                          onPressed: saving
-                              ? null
-                              : closeOrder,
-                          icon: const Icon(Icons.close),
-                        ),
                       ],
+                    ),
                     ),
                   ),
                   const Divider(height: 1),
@@ -965,25 +981,42 @@ Future<void> showOrderDialog(
                     ),
                   ),
                   const Divider(height: 1),
-                  Padding(
+                  Material(
+                    color: appTheme.colorScheme.surface,
+                    child: Padding(
                     padding: const EdgeInsetsDirectional.fromSTEB(
-                      20,
-                      14,
-                      20,
-                      14,
+                      16,
+                      12,
+                      16,
+                      12,
                     ),
                     child: Wrap(
                       spacing: 8,
-                      runSpacing: 4,
+                      runSpacing: 8,
                       alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        CommandButton(id: 'action.cancel', child: TextButton(
-                          onPressed: saving
-                              ? null
-                              : closeOrder,
-                          child: Text(l10n.cancel),
-                        )),
+                        CommandButton(
+                          id: 'action.cancel',
+                          child: OutlinedButton.icon(
+                            onPressed: saving ? null : closeOrder,
+                            icon: const Icon(Icons.arrow_back),
+                            label: Text(l10n.goBack),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(120, 48),
+                              backgroundColor: fieldFill,
+                              foregroundColor: appTheme.colorScheme.primary,
+                              side: BorderSide(color: fieldBorder, width: 1.6),
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
                         TextButton.icon(
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(120, 48),
+                          ),
                           onPressed: saving
                               ? null
                               : () async {
@@ -1024,6 +1057,9 @@ Future<void> showOrderDialog(
                           label: Text(l10n.workerSaveDraft),
                         ),
                         CommandButton(id: 'action.save', child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(148, 48),
+                          ),
                           onPressed: saving
                               ? null
                               : () async {
@@ -1281,10 +1317,10 @@ Future<void> showOrderDialog(
                         )),
                       ],
                     ),
+                    ),
                   ),
                 ],
               ),
-            ),
           ),
         );
       },
@@ -1617,7 +1653,6 @@ Future<_OrderSaveChoice?> _showOrderConfirmation(
     return StatefulBuilder(
       builder: (dialogContext, setState) {
         final balance = (total - paid).clamp(0, 1 << 60).toInt();
-        final compact = MediaQuery.sizeOf(dialogContext).width < 760;
         final orderDateText = CalendarService.format(
           CalendarService.shopToday(),
           calendar: CalendarService.activeCalendar,
@@ -1741,7 +1776,7 @@ Future<_OrderSaveChoice?> _showOrderConfirmation(
         return AlertDialog(
           title: Text(l10n.orderConfirmation),
           content: SizedBox(
-            width: 900,
+            width: fitContentWidth(dialogContext, 900),
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1753,8 +1788,8 @@ Future<_OrderSaveChoice?> _showOrderConfirmation(
                     spacing: 16,
                     runSpacing: 12,
                     children: [
-                      SizedBox(
-                        width: compact ? double.infinity : 410,
+                      AdaptiveWidth(
+                        width: 410,
                         child: documentCard(
                           icon: Icons.straighten_outlined,
                           title: l10n.measurementWorkSlip,
@@ -1779,8 +1814,8 @@ Future<_OrderSaveChoice?> _showOrderConfirmation(
                           ),
                         ),
                       ),
-                      SizedBox(
-                        width: compact ? double.infinity : 410,
+                      AdaptiveWidth(
+                        width: 410,
                         child: documentCard(
                           icon: Icons.receipt_long_outlined,
                           title: l10n.customerBill,
@@ -2022,7 +2057,7 @@ Future<void> showSavedOrderPrintOptions(
           return AlertDialog(
             title: Text(l10n.orderSaved),
             content: SizedBox(
-              width: 680,
+              width: fitContentWidth(dialogContext, 680),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -2184,6 +2219,127 @@ String _fabricCategoryForGarment(Garment garment) => switch (garment) {
   Garment.waistcoat || Garment.coat => 'Waistcoat / Coat Fabric',
 };
 
+String _formatFabricQuantity(num value) {
+  final quantity = value.toDouble();
+  if (quantity == quantity.roundToDouble()) {
+    return quantity.toStringAsFixed(0);
+  }
+  return quantity
+      .toStringAsFixed(3)
+      .replaceFirst(RegExp(r'0+$'), '')
+      .replaceFirst(RegExp(r'\.$'), '');
+}
+
+class _FabricChoiceTile extends StatelessWidget {
+  const _FabricChoiceTile({required this.fabric, required this.onTap});
+
+  final Map<String, Object?> fabric;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final scheme = Theme.of(context).colorScheme;
+    final name = fabric['name']?.toString().trim() ?? '';
+    final code = fabric['code']?.toString().trim() ?? '';
+    final colorName = fabric['color']?.toString().trim() ?? '';
+    final available = (fabric['available'] as num? ?? 0).toDouble();
+    final lowStock = (fabric['low_stock'] as num? ?? 0).toDouble();
+    final meter = fabric['unit']?.toString().toLowerCase() == 'meter';
+    final unit = meter
+        ? l10n.fabricFormMeter
+        : l10n.fabricFormUnitReview(fabric['unit']?.toString() ?? '');
+    final quantity = _formatFabricQuantity(available);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final tone = available <= 0
+        ? (dark ? const Color(0xfffca5a5) : const Color(0xffb42318))
+        : meter && lowStock > 0 && available <= lowStock
+        ? (dark ? const Color(0xfffdba74) : const Color(0xffc2410c))
+        : (dark ? const Color(0xff4ade80) : const Color(0xff15803d));
+    return Material(
+      color: scheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: tone.withValues(alpha: .14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.layers_outlined, color: tone),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.isEmpty ? code : name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      [
+                        if (code.isNotEmpty) code,
+                        if (colorName.isNotEmpty) colorName,
+                        l10n.available(quantity, unit),
+                      ].join(' · '),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    quantity,
+                    textDirection: TextDirection.ltr,
+                    style: TextStyle(
+                      color: tone,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 20,
+                    ),
+                  ),
+                  Text(
+                    unit,
+                    style: TextStyle(
+                      color: tone,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 Future<int?> _pickOrderFabric(
   BuildContext context,
   List<Map<String, Object?>> fabrics, {
@@ -2205,62 +2361,125 @@ Future<int?> _pickOrderFabric(
           ].join(' ').toLowerCase();
           return query.isEmpty || searchable.contains(query);
         }).toList();
-        return AlertDialog(
-          title: Text(title),
-          content: SizedBox(
-            width: 480,
-            height: 460,
-            child: Column(
-              children: [
-                TextField(
-                  controller: search,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    labelText: searchLabel,
-                    prefixIcon: const Icon(Icons.search),
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: matches.isEmpty
-                      ? Center(child: Text(emptyLabel))
-                      : ListView.builder(
-                          itemCount: matches.length,
-                          itemBuilder: (context, index) {
-                            final fabric = matches[index];
-                            final unit = fabric['unit'] == 'meter'
-                                ? context.l10n.fabricFormMeter
-                                : context.l10n.fabricFormUnitReview(
-                                    fabric['unit']?.toString() ?? '',
-                                  );
-                            final available = (fabric['available'] as num? ?? 0)
-                                .toStringAsFixed(3);
-                            final color = fabric['color']?.toString().trim();
-                            return ListTile(
-                              title: Text(
-                                '${fabric['name']} · ${fabric['code']}',
-                              ),
-                              subtitle: Text(
-                                '${color?.isNotEmpty == true ? '$color · ' : ''}$available $unit available',
-                              ),
-                              onTap: () => Navigator.pop(
-                                dialogContext,
-                                fabric['id'] as int,
-                              ),
-                            );
-                          },
+        final theme = Theme.of(dialogContext);
+        final scheme = theme.colorScheme;
+        final isDark = theme.brightness == Brightness.dark;
+        final fieldFill = isDark
+            ? const Color(0xff16343a)
+            : const Color(0xffe5f4f6);
+        final fieldBorder = isDark
+            ? const Color(0xff5eead4)
+            : const Color(0xff087f8c);
+        final media = MediaQuery.sizeOf(dialogContext);
+        final width = math.min(760.0, math.max(320.0, media.width - 48));
+        final height = math.min(680.0, math.max(360.0, media.height - 48));
+        return Dialog(
+          backgroundColor: scheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: fieldFill,
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                ),
-              ],
+                        child: Icon(Icons.layers_outlined, color: fieldBorder),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: search,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: searchLabel,
+                      filled: true,
+                      fillColor: fieldFill,
+                      prefixIcon: Icon(Icons.search, color: fieldBorder),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: fieldBorder.withValues(alpha: .55),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: fieldBorder, width: 2),
+                      ),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: matches.isEmpty
+                        ? Center(
+                            child: Text(
+                              emptyLabel,
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            itemCount: matches.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final fabric = matches[index];
+                              return _FabricChoiceTile(
+                                fabric: fabric,
+                                onTap: () => Navigator.pop(
+                                  dialogContext,
+                                  fabric['id'] as int,
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      icon: const Icon(Icons.arrow_back),
+                      label: Text(dialogContext.l10n.goBack),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(128, 48),
+                        backgroundColor: fieldFill,
+                        foregroundColor: scheme.primary,
+                        side: BorderSide(color: fieldBorder, width: 1.6),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
-            ),
-          ],
         );
       },
     ),

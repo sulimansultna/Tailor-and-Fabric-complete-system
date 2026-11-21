@@ -78,6 +78,7 @@ hooks:
 flutter:
   generate: true
   assets:
+    - assets/icons/
     - assets/images/tailoricon.png
     - assets/images/clothes.png
     - assets/images/waskoat.png

@@ -3,6 +3,13 @@ import 'package:flutter/material.dart';
 import '../../../data/shop_database.dart';
 import '../../../core/formatters.dart';
 import '../../../l10n/app_localizations_extensions.dart';
+import '../../../widgets/responsive_layout.dart';
+
+String _fabricLabel(Map<String, Object?> fabric) => [
+  fabric['code'],
+  fabric['name'],
+  fabric['color'],
+].whereType<String>().where((value) => value.trim().isNotEmpty).join(' · ');
 
 Future<bool?> showSellFabricDialog(
   BuildContext context,
@@ -68,15 +75,6 @@ class _SellFabricDialogState extends State<_SellFabricDialog> {
   int get total =>
       quantityMilli <= 0 ? 0 : (quantityMilli * priceValue + 500) ~/ 1000;
 
-  int _costRate(Map<String, Object?>? fabric) {
-    final average = (fabric?['average_cost'] as num?)?.toInt() ?? 0;
-    final purchase = (fabric?['purchase_cost'] as num?)?.toInt() ?? 0;
-    return average > 0 ? average : purchase;
-  }
-
-  int _amountAt(int rate) =>
-      quantityMilli <= 0 || rate < 0 ? 0 : (quantityMilli * rate + 500) ~/ 1000;
-
   String _moneyInput(int minor) => minor % 100 == 0
       ? (minor ~/ 100).toString()
       : (minor / 100).toStringAsFixed(2);
@@ -85,6 +83,21 @@ class _SellFabricDialogState extends State<_SellFabricDialog> {
     var text = value.toDouble().toStringAsFixed(3);
     text = text.replaceFirst(RegExp(r'0+$'), '');
     return text.replaceFirst(RegExp(r'\.$'), '');
+  }
+
+  Future<void> _selectFabric(List<Map<String, Object?>> fabrics) async {
+    final selected = await showDialog<Map<String, Object?>>(
+      context: context,
+      builder: (_) =>
+          _FabricPickerDialog(fabrics: fabrics, selectedId: fabricId),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      fabricId = selected['id'] as int;
+      unitPrice.text = _moneyInput(
+        (selected['selling_price'] as num?)?.toInt() ?? 0,
+      );
+    });
   }
 
   Widget _previewLine(String label, String value, {bool emphasize = false}) =>
@@ -148,17 +161,14 @@ class _SellFabricDialogState extends State<_SellFabricDialog> {
           (fabric['selling_price'] as num?)?.toInt() ?? 0,
         );
       }
-      final costRate = _costRate(fabric);
       final available = (fabric?['available'] as num?)?.toDouble() ?? 0;
-      final fabricCost = costRate > 0 ? _amountAt(costRate) : null;
-      final fabricProfit = fabricCost == null ? null : total - fabricCost;
       final remaining = available - quantityValue;
       final l10n = context.l10n;
       final locale = Localizations.localeOf(context).toLanguageTag();
       return AlertDialog(
         title: Text(l10n.sellFabric),
         content: SizedBox(
-          width: 460,
+          width: fitContentWidth(context, 460),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -169,29 +179,24 @@ class _SellFabricDialogState extends State<_SellFabricDialog> {
                     child: Text(l10n.noActiveFabric),
                   )
                 else ...[
-                  DropdownButtonFormField<int>(
-                    initialValue: fabricId,
-                    decoration: InputDecoration(labelText: l10n.fabricName),
-                    items: fabrics
-                        .map(
-                          (row) => DropdownMenuItem(
-                            value: row['id'] as int,
-                            child: Text(
-                              '${row['name']} · ${row['color']}',
-                              textDirection: TextDirection.ltr,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setState(() {
-                      fabricId = value;
-                      final selected = fabrics.firstWhere(
-                        (row) => row['id'] == value,
-                      );
-                      unitPrice.text = _moneyInput(
-                        (selected['selling_price'] as num?)?.toInt() ?? 0,
-                      );
-                    }),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(l10n.fabricName),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      key: const ValueKey('sell-fabric-selector'),
+                      onPressed: saving ? null : () => _selectFabric(fabrics),
+                      icon: const Icon(Icons.search),
+                      label: Text(
+                        fabric == null ? l10n.search : _fabricLabel(fabric),
+                        textDirection: TextDirection.ltr,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ),
                   if (fabric != null)
                     Align(
@@ -213,13 +218,18 @@ class _SellFabricDialogState extends State<_SellFabricDialog> {
                   const SizedBox(height: 10),
                   DropdownButtonFormField<int?>(
                     initialValue: customerId,
+                    isExpanded: true,
                     decoration: InputDecoration(
                       labelText: l10n.customerOptionalPaid,
                     ),
                     items: [
                       DropdownMenuItem<int?>(
                         value: null,
-                        child: Text(l10n.walkInCustomer),
+                        child: Text(
+                          l10n.walkInCustomer,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                       ...customers.map(
                         (row) => DropdownMenuItem<int?>(
@@ -227,6 +237,8 @@ class _SellFabricDialogState extends State<_SellFabricDialog> {
                           child: Text(
                             '${row['name']} · ${row['phone']}',
                             textDirection: TextDirection.ltr,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),
@@ -272,30 +284,12 @@ class _SellFabricDialogState extends State<_SellFabricDialog> {
                   ),
                   const SizedBox(height: 12),
                   _previewLine(
-                    l10n.reportFieldCostRate,
-                    costRate > 0
-                        ? formatMoney(costRate, locale: locale)
-                        : l10n.reportUnavailable,
-                  ),
-                  _previewLine(
                     l10n.reportFieldSellingRate,
                     formatMoney(priceValue, locale: locale),
                   ),
                   _previewLine(
                     l10n.reportFieldNetRevenue,
                     formatMoney(total, locale: locale),
-                  ),
-                  _previewLine(
-                    l10n.reportFieldRecordedCost,
-                    fabricCost == null
-                        ? l10n.reportUnavailable
-                        : formatMoney(fabricCost, locale: locale),
-                  ),
-                  _previewLine(
-                    l10n.reportColumnFabricProfit,
-                    fabricProfit == null
-                        ? l10n.reportUnavailable
-                        : formatMoney(fabricProfit, locale: locale),
                     emphasize: true,
                   ),
                   _previewLine(
@@ -371,5 +365,87 @@ class _SellFabricDialogState extends State<_SellFabricDialog> {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(context.l10n.errorGeneric)));
     }
+  }
+}
+
+class _FabricPickerDialog extends StatefulWidget {
+  const _FabricPickerDialog({required this.fabrics, required this.selectedId});
+
+  final List<Map<String, Object?>> fabrics;
+  final int? selectedId;
+
+  @override
+  State<_FabricPickerDialog> createState() => _FabricPickerDialogState();
+}
+
+class _FabricPickerDialogState extends State<_FabricPickerDialog> {
+  String query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final matches = widget.fabrics.where((fabric) {
+      return query.isEmpty ||
+          fabric['id'].toString() == query ||
+          [fabric['code'], fabric['name']].any(
+            (value) =>
+                normalizeLocalizedDigits(value?.toString() ?? '')
+                    .toLowerCase()
+                    .contains(query),
+          );
+    }).toList();
+
+    return AlertDialog(
+      title: Text(l10n.fabricName),
+      content: SizedBox(
+        width: fitContentWidth(context, 460),
+        height: fitContentHeight(context, 400),
+        child: Column(
+          children: [
+            TextField(
+              key: const ValueKey('sell-fabric-search'),
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: l10n.search,
+                helperText: l10n.fabricSearchHint,
+                helperMaxLines: 2,
+                prefixIcon: const Icon(Icons.search),
+              ),
+              onChanged: (value) => setState(() {
+                query = normalizeLocalizedDigits(value).trim().toLowerCase();
+              }),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: matches.isEmpty
+                  ? Center(child: Text(l10n.fabricSearchEmpty))
+                  : ListView.builder(
+                      itemCount: matches.length,
+                      itemBuilder: (context, index) {
+                        final fabric = matches[index];
+                        return ListTile(
+                          title: Text(
+                            _fabricLabel(fabric),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: fabric['id'] == widget.selectedId
+                              ? const Icon(Icons.check)
+                              : null,
+                          onTap: () => Navigator.pop(context, fabric),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.cancel),
+        ),
+      ],
+    );
   }
 }

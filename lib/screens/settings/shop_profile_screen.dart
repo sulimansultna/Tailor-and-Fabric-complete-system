@@ -5,6 +5,7 @@ import '../../commands/app_commands.dart';
 
 import '../../core/windows_image_picker.dart';
 import '../../data/shop_database.dart';
+import '../../l10n/app_localizations_extensions.dart';
 
 class ShopProfileScreen extends StatefulWidget {
   const ShopProfileScreen({
@@ -30,6 +31,7 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
   bool _saving = false;
   bool _removed = false;
   String? _pendingLogo;
+  String? _logoError;
   late final _settingsFuture = widget.database.settings();
   String _initial = '';
   String get _values => [_name.text, _owner.text, _phone.text, _address.text, _logo.text].join('|');
@@ -50,6 +52,7 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
   Widget build(BuildContext context) => FutureBuilder<Map<String, Object?>>(
     future: _settingsFuture,
     builder: (context, snapshot) {
+      final l10n = context.l10n;
       if (!snapshot.hasData) {
         return const Center(child: CircularProgressIndicator());
       }
@@ -67,77 +70,122 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
         AppCommand(CommandKey.cancel, _close),
         AppCommand(CommandKey.refresh, () async { await widget.database.settings(); }),
       ], child: ListView(
-        padding: const EdgeInsets.all(30),
+        padding: const EdgeInsets.all(24),
         children: [
           Row(
             children: [
               TextButton.icon(
                 onPressed: _close,
                 icon: const Icon(Icons.arrow_back),
-                label: const Text('Return'),
+                label: Text(l10n.close),
               ),
               const SizedBox(width: 12),
-              Text(
-                'Shop profile',
-                style: Theme.of(context).textTheme.headlineMedium,
+              Expanded(
+                child: Text(
+                  l10n.settingsShopProfileSection,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextFormField(
-                      controller: _name,
-                      decoration: const InputDecoration(labelText: 'Shop name'),
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _owner,
-                      decoration: const InputDecoration(
-                        labelText: 'Owner name',
+          const SizedBox(height: 8),
+          Text(
+            l10n.settingsShopProfileDescription,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Form(
+            key: _formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Group(
+                  title: l10n.profileShopIdentity,
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _name,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(labelText: l10n.shopName),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                            ? l10n.profileFieldRequired
+                            : null,
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _phone,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(labelText: 'Phone'),
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _address,
-                      maxLines: 2,
-                      decoration: const InputDecoration(labelText: 'Address'),
-                    ),
-                    const SizedBox(height: 22),
-                    Text(
-                      'Shop logo',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        _Logo(path: _logo.text),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Wrap(
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _owner,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(labelText: l10n.ownerName),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _Group(
+                  title: l10n.profileContactDetails,
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _phone,
+                        keyboardType: TextInputType.phone,
+                        textInputAction: TextInputAction.next,
+                        textDirection: TextDirection.ltr,
+                        decoration: InputDecoration(
+                          labelText: l10n.mobileNumber,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _address,
+                        maxLines: 2,
+                        decoration: InputDecoration(labelText: l10n.address),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _Group(
+                  title: l10n.profileLogoTitle,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.profileLogoHint,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final preview = Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.profileLogoPreview,
+                                style: const TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              _Logo(path: _logo.text),
+                            ],
+                          );
+                          final controls = Wrap(
                             spacing: 8,
+                            runSpacing: 8,
                             children: [
                               OutlinedButton.icon(
                                 onPressed: _saving ? null : _pickLogo,
                                 icon: const Icon(Icons.photo_library_outlined),
                                 label: Text(
                                   _logo.text.isEmpty
-                                      ? 'Choose photo'
-                                      : 'Change photo',
+                                      ? l10n.profileChoosePhoto
+                                      : l10n.profileChangePhoto,
                                 ),
                               ),
                               if (_logo.text.isNotEmpty)
@@ -148,35 +196,73 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
                                           _logo.clear();
                                           _pendingLogo = null;
                                           _removed = true;
+                                          _logoError = null;
                                         }),
                                   icon: const Icon(Icons.delete_outline),
-                                  label: const Text('Remove'),
+                                  label: Text(l10n.profileRemovePhoto),
                                 ),
                             ],
+                          );
+                          if (constraints.maxWidth < 460) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                preview,
+                                const SizedBox(height: 12),
+                                controls,
+                              ],
+                            );
+                          }
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              preview,
+                              const SizedBox(width: 16),
+                              Expanded(child: controls),
+                            ],
+                          );
+                        },
+                      ),
+                      if (_logoError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _logoError!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    OutlinedButton(
+                      onPressed: _saving ? null : _close,
+                      child: Text(l10n.cancel),
                     ),
-                    const SizedBox(height: 22),
-                    Align(
-                      alignment: AlignmentDirectional.centerEnd,
-                      child: CommandButton(id: 'action.save', child: FilledButton.icon(
+                    CommandButton(
+                      id: 'action.save',
+                      child: FilledButton.icon(
                         onPressed: _saving ? null : _save,
                         icon: _saving
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
+                                child: CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.save_outlined),
-                        label: const Text('Save'),
-                      )),
+                        label: Text(l10n.save),
+                      ),
                     ),
                   ],
                 ),
-              ),
+              ],
             ),
           ),
         ],
@@ -191,13 +277,18 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
         _logo.text = path;
         _pendingLogo = path;
         _removed = false;
+        _logoError = null;
       });
     }
   }
 
   Future<void> _save() async {
+    final l10n = context.l10n;
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+      _logoError = null;
+    });
     try {
       var path = _removed ? '' : _logo.text.trim();
       if (_pendingLogo != null) {
@@ -205,7 +296,10 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
         final ext = source.path.split('.').last.toLowerCase();
         if (!await source.exists() ||
             !{'png', 'jpg', 'jpeg', 'webp'}.contains(ext)) {
-          throw StateError('Choose a PNG, JPG, JPEG, or WebP image.');
+          if (mounted) {
+            setState(() => _logoError = l10n.profileInvalidLogo);
+          }
+          return;
         }
         final folder = Directory(File(widget.database.db.path).parent.path);
         await folder.create(recursive: true);
@@ -223,15 +317,16 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
       widget.onShopNameChanged?.call(_name.text.trim());
       _pendingLogo = null;
       _removed = false;
+      _logo.text = path;
       _initial = _values;
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Shop profile saved')));
+            .showSnackBar(SnackBar(content: Text(l10n.profileSaved)));
       }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not save shop profile: $error')),
+          SnackBar(content: Text('${l10n.profileSaveFailed} $error')),
         );
       }
     } finally {
@@ -240,17 +335,47 @@ class _ShopProfileScreenState extends State<ShopProfileScreen> {
   }
 }
 
+class _Group extends StatelessWidget {
+  const _Group({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    ),
+  );
+}
+
 class _Logo extends StatelessWidget {
   const _Logo({required this.path});
   final String path;
   @override
   Widget build(BuildContext context) {
     final placeholder = Container(
-      width: 96,
-      height: 96,
+      width: 88,
+      height: 88,
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       alignment: Alignment.center,
-      child: const Icon(Icons.add_a_photo_outlined),
+      child: Icon(
+        Icons.add_a_photo_outlined,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
     );
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
@@ -258,8 +383,8 @@ class _Logo extends StatelessWidget {
           ? placeholder
           : Image.file(
               File(path),
-              width: 96,
-              height: 96,
+              width: 88,
+              height: 88,
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => placeholder,
             ),

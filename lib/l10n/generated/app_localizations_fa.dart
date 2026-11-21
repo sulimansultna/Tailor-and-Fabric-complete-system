@@ -1060,6 +1060,12 @@ class AppLocalizationsFa extends AppLocalizations {
   String get fabricName => 'پارچه';
 
   @override
+  String get fabricSearchHint => 'جستجو بر اساس شناسه، کد یا نام پارچه';
+
+  @override
+  String get fabricSearchEmpty => 'پارچه‌ای مطابق این جستجو پیدا نشد.';
+
+  @override
   String get customerOptionalPaid => 'مشتری (برای فروش نقدی اختیاری)';
 
   @override
@@ -2767,6 +2773,190 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get reportFabricPriceProfitNote =>
       'سود هر متر از تفاوت قیمت فروش فعلی و قیمت خرید ثبت‌شده برای هر پارچه فعال محاسبه می‌شود. این مقایسه قیمت‌های فعلی به دورهٔ انتخاب‌شده محدود نیست. سود تحقق‌یافتهٔ پارچه همچنان بر اساس قیمت‌ها و هزینه‌های ثبت‌شده در معامله‌ها محاسبه می‌شود.';
+
+  @override
+  String get dashTodayOrders => 'سفارش‌های امروز';
+
+  @override
+  String get dashTodayOrdersHint => 'امروز دریافت شده';
+
+  @override
+  String get dashReadyCollection => 'آماده تحویل';
+
+  @override
+  String get dashReadyCollectionHint => 'در انتظار مشتری';
+
+  @override
+  String get dashCustomerDue => 'طلب مشتریان';
+
+  @override
+  String get dashCustomerDueHint => 'مانده‌های فعلی';
+
+  @override
+  String get dashSupplierDue => 'طلب عرضه‌کنندگان';
+
+  @override
+  String get dashSupplierDueHint => 'مانده‌های فعلی';
+
+  @override
+  String get dashFabricAvailable => 'پارچه موجود';
+
+  @override
+  String get dashFabricAvailableHint => 'متر موجود همین حالا';
+
+  @override
+  String get dashNetProfit => 'سود خالص';
+
+  @override
+  String get dashNetProfitHint => 'دوره انتخاب‌شده، پس از هزینه‌های ثبت‌شده';
+
+  @override
+  String get dashProfitUnavailableShort => 'ناموجود';
+
+  @override
+  String get dashProfitUnavailableHint =>
+      'برای محاسبه سود خالص، هزینه پارچه را ثبت کنید';
+
+  @override
+  String get dashNothingDue => 'اکنون طلبی نیست';
+
+  @override
+  String get dashPeriodToday => 'امروز';
+
+  @override
+  String get dashPeriodMonth => 'این ماه';
+
+  @override
+  String get dashPeriodYear => 'امسال';
+
+  @override
+  String get dashPeriodScope =>
+      'رقم‌های امروز و مانده‌های فعلی با این دوره عوض نمی‌شوند. سود از همین دوره حساب می‌شود.';
+
+  @override
+  String get dashBadgeToday => 'امروز';
+
+  @override
+  String get dashBadgePeriod => 'دوره';
+
+  @override
+  String get dashBadgeBalance => 'مانده';
+
+  @override
+  String get dashMoreFigures => 'رقم‌های بیشتر';
+
+  @override
+  String get dashSearchCustomersOrBills => 'جستجوی مشتری یا بل';
+
+  @override
+  String get dashSearchCustomersOrBillsHint =>
+      'نام، موبایل، شناسه، یا شماره بل';
+
+  @override
+  String get dashBills => 'بل‌ها';
+
+  @override
+  String get dashFindCustomer => 'یافتن مشتری';
+
+  @override
+  String get dashPurchaseFabric => 'خرید پارچه';
+
+  @override
+  String get dashTodayDeliveries => 'تحویل‌های امروز';
+
+  @override
+  String get dashEmptyToday => 'امروز چیزی برای تحویل نیست.';
+
+  @override
+  String get dashRecentOrders => 'سفارش‌های اخیر';
+
+  @override
+  String get dashEmptyRecent => 'هنوز سفارشی نیست. اولین سفارش را بسازید.';
+
+  @override
+  String get dashLowFabric => 'پارچه‌های نیازمند توجه';
+
+  @override
+  String get dashLowLabel => 'موجودی کم';
+
+  @override
+  String get dashEmptyLowFabric => 'هیچ پارچه‌ای به حد هشدار نرسیده است.';
+
+  @override
+  String get dashProfitChart => 'سود دوره انتخاب‌شده';
+
+  @override
+  String get dashOrdersChart => 'سفارش‌ها در طول زمان';
+
+  @override
+  String get dashNoOrdersInPeriod => 'در این دوره سفارشی نیست.';
+
+  @override
+  String get dashProfitNote =>
+      'سود خالص برابر است با سود پارچه به‌علاوه عاید خیاطی، منهای مصارف ثبت‌شده. عاید خیاطی، سود خیاطی نیست.';
+
+  @override
+  String get dashGrossUnavailable =>
+      'تا وقتی هزینه همه پارچه‌ها ثبت نشود، سود ناخالص و خالص نشان داده نمی‌شود.';
+
+  @override
+  String get dashProfileAddDetail => 'هنوز افزوده نشده';
+
+  @override
+  String get dashProfileEmptyHint =>
+      'نام دکان، تلفن و آدرس را اضافه کنید. اینجا و روی رسیدهای چاپی دیده می‌شود.';
+
+  @override
+  String get dashAmountDue => 'مبلغ قابل پرداخت';
+
+  @override
+  String get dashPaid => 'پرداخت‌شده';
+
+  @override
+  String get dashCashCollected => 'پول نقد جمع‌شده';
+
+  @override
+  String get dashLoadingFigures => 'در حال بارگذاری رقم‌ها';
+
+  @override
+  String get dashInsightFailed => 'رقم‌های سود بارگذاری نشد.';
+
+  @override
+  String get profileShopIdentity => 'هویت دکان';
+
+  @override
+  String get profileContactDetails => 'معلومات تماس';
+
+  @override
+  String get profileLogoTitle => 'نشان دکان';
+
+  @override
+  String get profileChoosePhoto => 'انتخاب عکس';
+
+  @override
+  String get profileChangePhoto => 'تغییر عکس';
+
+  @override
+  String get profileRemovePhoto => 'حذف';
+
+  @override
+  String get profileLogoHint => 'در داشبورد و رسیدهای چاپی استفاده می‌شود.';
+
+  @override
+  String get profileFieldRequired => 'نام دکان را بنویسید.';
+
+  @override
+  String get profileSaved => 'مشخصات دکان ذخیره شد';
+
+  @override
+  String get profileSaveFailed => 'مشخصات دکان ذخیره نشد.';
+
+  @override
+  String get profileInvalidLogo =>
+      'یک تصویر PNG، JPG، JPEG یا WebP انتخاب کنید.';
+
+  @override
+  String get profileLogoPreview => 'پیش‌نمایش نشان';
 }
 
 /// The translations for Persian, as used in Afghanistan (`fa_AF`).
@@ -3822,6 +4012,12 @@ class AppLocalizationsFaAf extends AppLocalizationsFa {
 
   @override
   String get fabricName => 'پارچه';
+
+  @override
+  String get fabricSearchHint => 'جستجو بر اساس شناسه، کد یا نام پارچه';
+
+  @override
+  String get fabricSearchEmpty => 'پارچه‌ای مطابق این جستجو پیدا نشد.';
 
   @override
   String get customerOptionalPaid => 'مشتری (برای فروش نقدی اختیاری)';
@@ -5528,4 +5724,188 @@ class AppLocalizationsFaAf extends AppLocalizationsFa {
   @override
   String get reportFabricPriceProfitNote =>
       'سود هر متر از تفاوت قیمت فروش فعلی و قیمت خرید ثبت‌شده برای هر پارچه فعال محاسبه می‌شود. این مقایسه قیمت‌های فعلی به دورهٔ انتخاب‌شده محدود نیست. سود تحقق‌یافتهٔ پارچه همچنان بر اساس قیمت‌ها و هزینه‌های ثبت‌شده در معامله‌ها محاسبه می‌شود.';
+
+  @override
+  String get dashTodayOrders => 'سفارش‌های امروز';
+
+  @override
+  String get dashTodayOrdersHint => 'امروز دریافت شده';
+
+  @override
+  String get dashReadyCollection => 'آماده تحویل';
+
+  @override
+  String get dashReadyCollectionHint => 'در انتظار مشتری';
+
+  @override
+  String get dashCustomerDue => 'طلب مشتریان';
+
+  @override
+  String get dashCustomerDueHint => 'مانده‌های فعلی';
+
+  @override
+  String get dashSupplierDue => 'طلب عرضه‌کنندگان';
+
+  @override
+  String get dashSupplierDueHint => 'مانده‌های فعلی';
+
+  @override
+  String get dashFabricAvailable => 'پارچه موجود';
+
+  @override
+  String get dashFabricAvailableHint => 'متر موجود همین حالا';
+
+  @override
+  String get dashNetProfit => 'سود خالص';
+
+  @override
+  String get dashNetProfitHint => 'دوره انتخاب‌شده، پس از هزینه‌های ثبت‌شده';
+
+  @override
+  String get dashProfitUnavailableShort => 'ناموجود';
+
+  @override
+  String get dashProfitUnavailableHint =>
+      'برای محاسبه سود خالص، هزینه پارچه را ثبت کنید';
+
+  @override
+  String get dashNothingDue => 'اکنون طلبی نیست';
+
+  @override
+  String get dashPeriodToday => 'امروز';
+
+  @override
+  String get dashPeriodMonth => 'این ماه';
+
+  @override
+  String get dashPeriodYear => 'امسال';
+
+  @override
+  String get dashPeriodScope =>
+      'رقم‌های امروز و مانده‌های فعلی با این دوره عوض نمی‌شوند. سود از همین دوره حساب می‌شود.';
+
+  @override
+  String get dashBadgeToday => 'امروز';
+
+  @override
+  String get dashBadgePeriod => 'دوره';
+
+  @override
+  String get dashBadgeBalance => 'مانده';
+
+  @override
+  String get dashMoreFigures => 'رقم‌های بیشتر';
+
+  @override
+  String get dashSearchCustomersOrBills => 'جستجوی مشتری یا بل';
+
+  @override
+  String get dashSearchCustomersOrBillsHint =>
+      'نام، موبایل، شناسه، یا شماره بل';
+
+  @override
+  String get dashBills => 'بل‌ها';
+
+  @override
+  String get dashFindCustomer => 'یافتن مشتری';
+
+  @override
+  String get dashPurchaseFabric => 'خرید پارچه';
+
+  @override
+  String get dashTodayDeliveries => 'تحویل‌های امروز';
+
+  @override
+  String get dashEmptyToday => 'امروز چیزی برای تحویل نیست.';
+
+  @override
+  String get dashRecentOrders => 'سفارش‌های اخیر';
+
+  @override
+  String get dashEmptyRecent => 'هنوز سفارشی نیست. اولین سفارش را بسازید.';
+
+  @override
+  String get dashLowFabric => 'پارچه‌های نیازمند توجه';
+
+  @override
+  String get dashLowLabel => 'موجودی کم';
+
+  @override
+  String get dashEmptyLowFabric => 'هیچ پارچه‌ای به حد هشدار نرسیده است.';
+
+  @override
+  String get dashProfitChart => 'سود دوره انتخاب‌شده';
+
+  @override
+  String get dashOrdersChart => 'سفارش‌ها در طول زمان';
+
+  @override
+  String get dashNoOrdersInPeriod => 'در این دوره سفارشی نیست.';
+
+  @override
+  String get dashProfitNote =>
+      'سود خالص برابر است با سود پارچه به‌علاوه عاید خیاطی، منهای مصارف ثبت‌شده. عاید خیاطی، سود خیاطی نیست.';
+
+  @override
+  String get dashGrossUnavailable =>
+      'تا وقتی هزینه همه پارچه‌ها ثبت نشود، سود ناخالص و خالص نشان داده نمی‌شود.';
+
+  @override
+  String get dashProfileAddDetail => 'هنوز افزوده نشده';
+
+  @override
+  String get dashProfileEmptyHint =>
+      'نام دکان، تلفن و آدرس را اضافه کنید. اینجا و روی رسیدهای چاپی دیده می‌شود.';
+
+  @override
+  String get dashAmountDue => 'مبلغ قابل پرداخت';
+
+  @override
+  String get dashPaid => 'پرداخت‌شده';
+
+  @override
+  String get dashCashCollected => 'پول نقد جمع‌شده';
+
+  @override
+  String get dashLoadingFigures => 'در حال بارگذاری رقم‌ها';
+
+  @override
+  String get dashInsightFailed => 'رقم‌های سود بارگذاری نشد.';
+
+  @override
+  String get profileShopIdentity => 'هویت دکان';
+
+  @override
+  String get profileContactDetails => 'معلومات تماس';
+
+  @override
+  String get profileLogoTitle => 'نشان دکان';
+
+  @override
+  String get profileChoosePhoto => 'انتخاب عکس';
+
+  @override
+  String get profileChangePhoto => 'تغییر عکس';
+
+  @override
+  String get profileRemovePhoto => 'حذف';
+
+  @override
+  String get profileLogoHint => 'در داشبورد و رسیدهای چاپی استفاده می‌شود.';
+
+  @override
+  String get profileFieldRequired => 'نام دکان را بنویسید.';
+
+  @override
+  String get profileSaved => 'مشخصات دکان ذخیره شد';
+
+  @override
+  String get profileSaveFailed => 'مشخصات دکان ذخیره نشد.';
+
+  @override
+  String get profileInvalidLogo =>
+      'یک تصویر PNG، JPG، JPEG یا WebP انتخاب کنید.';
+
+  @override
+  String get profileLogoPreview => 'پیش‌نمایش نشان';
 }

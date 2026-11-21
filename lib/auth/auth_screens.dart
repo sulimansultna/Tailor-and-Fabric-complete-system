@@ -12,6 +12,7 @@ import 'auth_controller.dart';
 import 'auth_service.dart';
 import 'auth_text.dart';
 import 'login_brand_panel.dart';
+import '../widgets/responsive_layout.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
@@ -190,7 +191,7 @@ class _LoginScreenState extends State<LoginScreen> {
         builder: (ctx, setDialog) => AlertDialog(
           title: Text(authText(ctx, 'forgotTitle')),
           content: SizedBox(
-            width: 420,
+            width: fitContentWidth(ctx, 420),
             child: Form(
               key: formKey,
               child: Column(
@@ -890,7 +891,7 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
             authText(ctx, username ? 'changeUsername' : 'changePassword'),
           ),
           content: SizedBox(
-            width: 400,
+            width: fitContentWidth(ctx, 400),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

@@ -1264,11 +1264,20 @@ class _ExpenseFormState extends State<_ExpenseForm> {
   }
 
   @override
-  Widget build(BuildContext context) => Dialog(
+  Widget build(BuildContext context) {
+    final bounds = ResponsiveLayout.dialogSize(
+      context,
+      maxWidth: 720,
+      inset: 16,
+    );
+    return Dialog(
     child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 720),
-      child: Padding(
-        padding: const EdgeInsets.all(28),
+      constraints: BoxConstraints(
+        maxWidth: bounds.width,
+        maxHeight: bounds.height,
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
         child: Form(
           key: _form,
           child: Column(
@@ -1286,7 +1295,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
                 spacing: 14,
                 runSpacing: 14,
                 children: [
-                  SizedBox(
+                  AdaptiveWidth(
                     width: 320,
                     child: DropdownButtonFormField<String>(
                       initialValue: _category,
@@ -1308,7 +1317,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
                     icon: const Icon(Icons.add),
                     label: Text(_l10n.addCategory),
                   ),
-                  SizedBox(
+                  AdaptiveWidth(
                     width: 320,
                     child: TextFormField(
                       controller: _amount,
@@ -1329,7 +1338,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
                       autofocus: true,
                     ),
                   ),
-                  SizedBox(
+                  AdaptiveWidth(
                     width: 320,
                     child: TextFormField(
                       controller: _description,
@@ -1342,7 +1351,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
                           : null,
                     ),
                   ),
-                  SizedBox(
+                  AdaptiveWidth(
                     width: 320,
                     child: TextFormField(
                       controller: _payee,
@@ -1352,7 +1361,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
                       ),
                     ),
                   ),
-                  SizedBox(
+                  AdaptiveWidth(
                     width: 320,
                     child: TextFormField(
                       controller: _reference,
@@ -1362,7 +1371,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
                       ),
                     ),
                   ),
-                  SizedBox(
+                  AdaptiveWidth(
                     width: 320,
                     child: DropdownButtonFormField<String>(
                       initialValue: _method,
@@ -1381,7 +1390,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
                       onChanged: (v) => setState(() => _method = v ?? 'Cash'),
                     ),
                   ),
-                  SizedBox(
+                  AdaptiveWidth(
                     width: 320,
                     child: InkWell(
                       onTap: () async {
@@ -1408,7 +1417,7 @@ class _ExpenseFormState extends State<_ExpenseForm> {
                       ),
                     ),
                   ),
-                  SizedBox(
+                  AdaptiveWidth(
                     width: 654,
                     child: TextFormField(
                       controller: _notes,
@@ -1466,4 +1475,5 @@ class _ExpenseFormState extends State<_ExpenseForm> {
       ),
     ),
   );
+  }
 }

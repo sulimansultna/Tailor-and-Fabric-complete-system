@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../../commands/app_commands.dart';
+
 import 'package:intl/intl.dart' as intl;
 
 import '../../core/app_date_picker.dart';
@@ -13,6 +15,12 @@ import 'widgets/fabric_purchase_option_card.dart';
 import 'widgets/purchase_invoice_line_card.dart';
 import 'widgets/purchase_panel_shell.dart';
 
+typedef FabricPurchasePrinter = Future<bool> Function(
+  ShopDatabase database,
+  String purchaseNumber, {
+  required String locale,
+});
+
 class FabricPurchaseScreen extends StatefulWidget {
   const FabricPurchaseScreen({
     super.key,
@@ -20,11 +28,13 @@ class FabricPurchaseScreen extends StatefulWidget {
     this.supplierId,
     this.draftId,
     this.fabricId,
+    this.printInvoice = printFabricPurchaseInvoice,
   });
   final ShopDatabase database;
   final int? supplierId;
   final int? draftId;
   final int? fabricId;
+  final FabricPurchasePrinter printInvoice;
 
   @override
   State<FabricPurchaseScreen> createState() => _FabricPurchaseScreenState();
@@ -38,6 +48,7 @@ class _PurchaseLine {
   final TextEditingController quantity;
   final TextEditingController cost;
   final FocusNode quantityFocus = FocusNode();
+  final GlobalKey rowKey = GlobalKey();
   String? quantityError;
   String? costError;
   void dispose() {
@@ -336,11 +347,13 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
   String _method = 'Cash';
   String _categoryFilter = 'all';
   int _supplierAdvanceAvailable = 0;
+  int _supplierPayableBefore = 0;
   bool _applySupplierAdvance = false;
-  bool _showSupplierOptions = true;
+  bool _showAdjustments = false;
   bool _showInvoiceOnSmall = false;
   bool _loading = true;
   bool _saving = false;
+  bool _posting = false;
   bool _dirty = false;
   bool _initialFabricAdded = false;
   bool _allowPop = false;
@@ -349,6 +362,9 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
   int? _draftId;
   String? _number;
   String? _postedNumber;
+  String? _printMessage;
+  bool _printFailed = false;
+  bool _formError = false;
   String? _supplierError;
   String? _emptyLinesError;
   String? _discountError;
@@ -359,16 +375,13 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
 
   String get _language => Localizations.localeOf(context).languageCode;
   String _t(String key) =>
+      _purchaseRedesignWords[_language]?[key] ??
       _purchaseNewWords[_language]?[key] ??
       _purchaseLocaleOverrides[_language]?[key] ??
       _words[_language]?[key] ??
       _words['en']![key]!;
-  String _money(int value) => intl.NumberFormat.currency(
-    locale: Localizations.localeOf(context).toLanguageTag(),
-    name: 'AFN',
-    symbol: 'AFN',
-    decimalDigits: value.abs() % 100 == 0 ? 0 : 2,
-  ).format(value / 100);
+  String _money(int value) =>
+      '${intl.NumberFormat.decimalPatternDigits(locale: Localizations.localeOf(context).toLanguageTag(), decimalDigits: value.abs() % 100 == 0 ? 0 : 2).format(value / 100)} AFN';
   int _readMoney(TextEditingController controller) =>
       SupplierPurchaseLogic.parsePriceMinor(controller.text) ?? 0;
   int get _subtotal => _lines.fold(0, (sum, line) {
@@ -426,7 +439,12 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
   }
 
   void _changed() {
-    if (mounted) setState(() => _dirty = true);
+    if (mounted) {
+      setState(() {
+        _dirty = true;
+        _formError = false;
+      });
+    }
   }
 
   void _searchChanged() {
@@ -464,8 +482,12 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
         _invoice.text = '${draft['invoice_reference'] ?? ''}';
         _notes.text = '${draft['notes'] ?? ''}';
         _date = DateTime.parse(draft['date'] as String);
-        _discount.text = '${draft['discount']}';
-        _extraCost.text = '${draft['extra_cost']}';
+        _discount.text = _priceInput((draft['discount'] as num? ?? 0).toInt());
+        _extraCost.text = _priceInput(
+          (draft['extra_cost'] as num? ?? 0).toInt(),
+        );
+        _showAdjustments =
+            _readMoney(_discount) > 0 || _readMoney(_extraCost) > 0;
         _paid.text = _priceInput((draft['paid'] as num? ?? 0).toInt());
         _advanceApplied.text = _priceInput(
           (draft['draft_advance_applied'] as num? ?? 0).toInt(),
@@ -493,9 +515,16 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
       if (!mounted) return;
       setState(() {
         _suppliers = suppliers;
+        _supplierPayableBefore =
+            ((suppliers
+                            .where((row) => row['id'] == _supplierId)
+                            .firstOrNull?['balance']
+                        as num?) ??
+                    0)
+                .toInt()
+                .clamp(0, 1 << 60);
         _fabrics = fabrics;
         _paymentMethods = methods;
-        _showSupplierOptions = _supplierId == null;
         _loading = false;
         _error = null;
         _dirty = false;
@@ -561,14 +590,21 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted || _posted) return;
-      if (_invoiceLinesScroll.hasClients) {
-        await _invoiceLinesScroll.animateTo(
-          _invoiceLinesScroll.position.maxScrollExtent,
+      final rowContext = line.rowKey.currentContext;
+      if (rowContext != null) {
+        await Scrollable.ensureVisible(
+          rowContext,
+          alignment: .35,
           duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
         );
       }
-      if (mounted && !_posted) line.quantityFocus.requestFocus();
+      if (mounted && !_posted && _lines.contains(line)) {
+        line.quantityFocus.requestFocus();
+        line.quantity.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: line.quantity.text.length,
+        );
+      }
     });
   }
 
@@ -711,67 +747,21 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
   }
 
   Future<void> _addFabricToInvoice(Map<String, Object?> fabric) async {
-    if (_posted) return;
-    final fabricId = fabric['id'] as int;
-    final suggestedCost = (fabric['purchase_cost'] as num? ?? 0).toInt();
-    final sameCostLine = _lines.where((line) {
-      return line.fabricId == fabricId &&
-          SupplierPurchaseLogic.parsePriceMinor(line.cost.text) ==
-              suggestedCost;
-    }).firstOrNull;
-    if (sameCostLine != null) {
-      final quantity =
-          SupplierPurchaseLogic.parseQuantityMilli(
-            sameCostLine.quantity.text,
-          ) ??
-          0;
-      sameCostLine.quantity.text = SupplierPurchaseLogic.formatMeters(
-        (quantity + 1000) / 1000,
-      );
-      _focusQuantity(sameCostLine);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_t('quantityIncreased')),
-            duration: const Duration(milliseconds: 1200),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-      return;
-    }
-
-    final duplicate = _lines.any((line) => line.fabricId == fabricId);
-    if (duplicate) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(_t('duplicateFabric')),
-          content: Text(_t('differentPriceSeparateLine')),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(_t('cancel')),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(_t('addSeparateLine')),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-    }
-    _addLine(fabricId);
-    if (mounted) {
+    if (_posted || _saving) return;
+    final existing = _lines
+        .where((line) => line.fabricId == fabric['id'])
+        .firstOrNull;
+    if (existing != null) {
+      _focusQuantity(existing);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_t('fabricAdded')),
-          duration: const Duration(milliseconds: 1200),
-          behavior: SnackBarBehavior.floating,
+          content: Text(_t('alreadyAdded')),
+          duration: const Duration(milliseconds: 1400),
         ),
       );
+      return;
     }
+    _addLine(fabric['id'] as int);
   }
 
   void _selectSupplier(Map<String, Object?> supplier) {
@@ -780,7 +770,9 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
     _advanceApplied.text = '0';
     setState(() {
       _supplierId = id;
-      _showSupplierOptions = false;
+      _supplierPayableBefore = ((supplier['balance'] as num?) ?? 0)
+          .toInt()
+          .clamp(0, 1 << 60);
       _supplierError = null;
       _supplierAdvanceAvailable = 0;
       _applySupplierAdvance = false;
@@ -789,62 +781,85 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
     _refreshSupplierAdvance(id);
   }
 
-  Widget _supplierSearchResults() {
-    final query = _supplierSearch.text.trim().toLowerCase();
-    final results = _suppliers
-        .where((supplier) {
-          final haystack =
-              '${supplier['name']} ${supplier['phone'] ?? ''} ${supplier['phone2'] ?? ''} ${supplier['code'] ?? ''}'
-                  .toLowerCase();
-          return haystack.contains(query);
-        })
-        .take(6)
-        .toList();
-    return _searchResultPanel(
-      results.isEmpty
-          ? Padding(
-              padding: const EdgeInsets.all(14),
-              child: Text(_t('noSupplierMatches')),
-            )
-          : Column(
-              children: [
-                for (final supplier in results)
-                  ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.storefront_outlined),
-                    title: Text('${supplier['name']}'),
-                    subtitle: Text(
-                      [supplier['code'], supplier['phone']]
-                          .where((value) => '$value'.trim().isNotEmpty)
-                          .join(' · '),
+  Future<void> _pickSupplier() async {
+    _supplierSearch.clear();
+    final selected = await showDialog<Map<String, Object?>>(
+      context: context,
+      builder: (dialogContext) => Theme(
+        data: _purchaseFieldTheme(dialogContext),
+        child: StatefulBuilder(
+          builder: (dialogContext, refresh) {
+            final query = normalizeLocalizedDigits(_supplierSearch.text)
+                .trim()
+                .toLowerCase();
+            final results = _suppliers
+                .where(
+                  (row) => normalizeLocalizedDigits(
+                    '${row['name']} ${row['phone'] ?? ''} ${row['phone2'] ?? ''} ${row['code'] ?? ''}',
+                  ).toLowerCase().contains(query),
+                )
+                .toList();
+            return AlertDialog(
+              title: Text(_t('chooseSupplier')),
+              content: SizedBox(
+                width: 460,
+                height: 340,
+                child: Column(
+                  children: [
+                    TextField(
+                      key: const ValueKey('purchase-supplier-search'),
+                      controller: _supplierSearch,
+                      autofocus: true,
+                      onChanged: (_) => refresh(() {}),
+                      decoration: InputDecoration(
+                        labelText: _t('supplierHint'),
+                        prefixIcon: const Icon(Icons.search_rounded),
+                      ),
                     ),
-                    trailing: _supplierId == supplier['id']
-                        ? Icon(
-                            Icons.check_circle,
-                            color: Theme.of(context).colorScheme.secondary,
-                          )
-                        : null,
-                    onTap: () => _selectSupplier(supplier),
-                  ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: results.isEmpty
+                          ? Center(child: Text(_t('noSupplierMatches')))
+                          : ListView.builder(
+                              itemCount: results.length,
+                              itemBuilder: (context, index) {
+                                final supplier = results[index];
+                                return ListTile(
+                                  title: Text(
+                                    '${supplier['name']}',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: Text(
+                                    '${supplier['phone'] ?? ''}',
+                                    textDirection: TextDirection.ltr,
+                                  ),
+                                  leading: const Icon(Icons.storefront_rounded),
+                                  trailing: _supplierId == supplier['id']
+                                      ? const Icon(Icons.check_circle_outline)
+                                      : null,
+                                  onTap: () =>
+                                      Navigator.pop(dialogContext, supplier),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text(_t('cancel')),
+                ),
               ],
-            ),
+            );
+          },
+        ),
+      ),
     );
+    if (selected != null && mounted) _selectSupplier(selected);
   }
-
-  Widget _searchResultPanel(Widget child) => Container(
-    constraints: const BoxConstraints(maxHeight: 180),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface,
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Material(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(child: child),
-    ),
-  );
 
   Future<void> _removeLine(int index) async {
     final line = _lines[index];
@@ -892,50 +907,12 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
     });
   }
 
-  Future<void> _clearInvoice() async {
-    if (_posted) return;
-    final clear = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(_t('clearInvoice')),
-        content: Text(_t('clearInvoiceConfirm')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(_t('cancel')),
-          ),
-          FilledButton.tonal(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(_t('clearInvoice')),
-          ),
-        ],
-      ),
-    );
-    if (clear != true || !mounted) return;
-    for (final line in _lines) {
-      line.dispose();
-    }
-    setState(() {
-      _lines.clear();
-      _supplierId = null;
-      _supplierAdvanceAvailable = 0;
-      _applySupplierAdvance = false;
-      _invoice.clear();
-      _discount.text = '0';
-      _extraCost.text = '0';
-      _paid.text = '0';
-      _advanceApplied.text = '0';
-      _paymentReference.clear();
-      _notes.clear();
-      _supplierError = null;
-      _emptyLinesError = null;
-      _dirty = true;
-    });
-  }
-
   Future<void> _saveDraft() async {
     if (_posted || _saving || !_validate()) return;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+      _formError = false;
+    });
     try {
       _draftId = await widget.database.saveFabricPurchaseDraft(
         draftId: _draftId,
@@ -1006,6 +983,12 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
         _advanceError != null) {
       valid = false;
     }
+    if (_discountError != null || _extraCostError != null) {
+      _showAdjustments = true;
+    }
+    if (!valid && MediaQuery.sizeOf(context).width < 1000) {
+      _showInvoiceOnSmall = true;
+    }
     if (mounted) setState(() {});
     return valid;
   }
@@ -1035,44 +1018,46 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
           context: context,
           builder: (context) => AlertDialog(
             title: Text(_t('reviewPurchase')),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _reviewRow(
-                  _t('supplier'),
-                  (supplier?['name'] ?? '').toString(),
-                ),
-                _reviewRow(_t('fabricItemCount'), _lines.length.toString()),
-                _reviewRow(
-                  _t('totalMeters'),
-                  '${SupplierPurchaseLogic.formatMeters(_totalMeters)} m',
-                ),
-                _reviewRow(_t('purchaseTotal'), _money(_grandTotal)),
-                _reviewRow(_t('paidNow'), _money(_cashPaid)),
-                if (advance > 0)
-                  _reviewRow(_t('advanceApplied'), _money(advance)),
-                _reviewRow(_t('remaining'), _money(remaining)),
-                if (_cashAdvance > 0) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.tertiaryContainer,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      _t('cashAdvanceNotice')
-                          .replaceAll('{amount}', _money(_cashAdvance)),
-                      style: TextStyle(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onTertiaryContainer,
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _reviewRow(
+                    _t('supplier'),
+                    (supplier?['name'] ?? '').toString(),
+                  ),
+                  _reviewRow(_t('fabricItemCount'), _lines.length.toString()),
+                  _reviewRow(
+                    _t('totalMeters'),
+                    '${SupplierPurchaseLogic.formatMeters(_totalMeters)} m',
+                  ),
+                  _reviewRow(_t('purchaseTotal'), _money(_grandTotal)),
+                  _reviewRow(_t('paidNow'), _money(_cashPaid)),
+                  if (advance > 0)
+                    _reviewRow(_t('advanceApplied'), _money(advance)),
+                  _reviewRow(_t('remaining'), _money(remaining)),
+                  if (_cashAdvance > 0) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.tertiaryContainer,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        _t('cashAdvanceNotice')
+                            .replaceAll('{amount}', _money(_cashAdvance)),
+                        style: TextStyle(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onTertiaryContainer,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
             actions: [
               TextButton(
@@ -1102,34 +1087,38 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
 
   Future<void> _post({bool printAfter = false}) async {
     if (_posted || _saving || !_validate()) return;
-    if (_invoice.text.trim().isNotEmpty &&
-        await widget.database.supplierInvoiceExists(
-          _supplierId!,
-          _invoice.text,
-        )) {
-      if (!mounted) return;
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(_t('possibleDuplicate')),
-          content: Text(_t('duplicateInvoice')),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(_t('cancel')),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(_t('continueAnyway')),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-    }
-    if (!await _showPurchaseReview() || !mounted) return;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+      _formError = false;
+    });
     try {
+      if (_invoice.text.trim().isNotEmpty &&
+          await widget.database.supplierInvoiceExists(
+            _supplierId!,
+            _invoice.text,
+          )) {
+        if (!mounted) return;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(_t('possibleDuplicate')),
+            content: Text(_t('duplicateInvoice')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(_t('cancel')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(_t('continueAnyway')),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true || !mounted) return;
+      }
+      if (!await _showPurchaseReview() || !mounted) return;
+      setState(() => _posting = true);
       final number = await widget.database.confirmFabricPurchase(
         draftId: _draftId,
         supplierId: _supplierId!,
@@ -1151,13 +1140,18 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
         _postedNumber = number;
         _posted = true;
         _dirty = false;
-        _saving = false;
       });
       await _refreshCatalogs();
       if (printAfter && mounted) await _printPostedPurchase();
     } catch (error) {
       _showError(error);
-      if (mounted) setState(() => _saving = false);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _posting = false;
+        });
+      }
     }
   }
 
@@ -1180,41 +1174,38 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
     final number = _postedNumber;
     if (number == null) return;
     try {
-      final opened = await printFabricPurchaseInvoice(
+      final opened = await widget.printInvoice(
         widget.database,
         number,
         locale: Localizations.localeOf(context).toLanguageTag(),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(opened ? _t('printOpened') : _t('printFailed')),
-          action: opened
-              ? null
-              : SnackBarAction(
-                  label: _t('reprint'),
-                  onPressed: _printPostedPurchase,
-                ),
-        ),
-      );
+      setState(() {
+        _printFailed = !opened;
+        _printMessage = opened ? _t('printOpened') : _t('printFailed');
+      });
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${_t('printFailed')}: $error'),
-          action: SnackBarAction(
-            label: _t('reprint'),
-            onPressed: _printPostedPurchase,
-          ),
-        ),
-      );
+      debugPrint('Purchase printing failed: $error');
+      setState(() {
+        _printFailed = true;
+        _printMessage = _t('printFailed');
+      });
     }
   }
 
   void _showError(Object error) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('${_t('saveError')}: $error')));
+    debugPrint('Purchase entry failed: $error');
+    setState(() {
+      _formError = true;
+      _showInvoiceOnSmall = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _invoiceLinesScroll.hasClients) {
+        _invoiceLinesScroll.jumpTo(0);
+      }
+    });
   }
 
   Future<bool> _confirmLeave() async {
@@ -1254,91 +1245,145 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
   @override
   Widget build(BuildContext context) {
     final rtl = _language == 'ps' || _language == 'fa';
-    return CommandScope(beforeLeave: _confirmLeave, priority: 30, commands: [
-      AppCommand('purchases.confirm', () => _post(), aliases: [CommandKey.save], disabledReason: () => _posted || _saving ? _t('posted') : null),
-      AppCommand('purchases.saveDraft', _saveDraft, disabledReason: () => _posted || _saving ? _t('posted') : null),
-      AppCommand('purchases.print', _printPostedPurchase, aliases: [CommandKey.print], disabledReason: () => !_posted || _saving ? localizedCommandText(context, 'Confirm the purchase before printing its posted document.', 'لومړی پېرود تایید کړئ.', 'ابتدا خرید را تأیید کنید.') : null),
-      AppCommand(CommandKey.refresh, _refreshCatalogs, disabledReason: () => _saving ? _t('saving') : null),
-      AppCommand(CommandKey.cancel, _requestLeave, disabledReason: () => _saving ? _t('saving') : null),
-      AppCommand('purchases.new', () => AppCommandRegistry.maybeOf(context)!.invoke('nav.purchases'), aliases: [CommandKey.add]),
-      AppCommand(CommandKey.search, () async { setState(() => _showInvoiceOnSmall = false); await WidgetsBinding.instance.endOfFrame; await focusCommandSearch(_fabricSearch); }),
-    ], child: Theme(
-      data: _purchaseFieldTheme(context),
-      child: Directionality(
-        textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
-        child: PopScope(
-          canPop: _allowPop,
-          onPopInvokedWithResult: (didPop, result) {
-            if (!didPop) _requestLeave();
-          },
-          child: Scaffold(
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            body: SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final wide = constraints.maxWidth >= 1000;
-                  return Column(
-                    children: [
-                      _buildPageHeader(wide, rtl),
-                      if (!wide) _buildSmallScreenTabs(),
-                      Expanded(
-                        child: _loading
-                            ? const Center(child: CircularProgressIndicator())
-                            : _error != null
-                            ? _buildLoadError()
-                            : wide
-                            ? Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  0,
-                                  16,
-                                  16,
-                                ),
-                                child: Row(
-                                  textDirection: TextDirection.ltr,
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Expanded(
-                                      flex: 55,
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: 8,
+    return CommandScope(
+      beforeLeave: _confirmLeave,
+      priority: 30,
+      commands: [
+        AppCommand(
+          'purchases.confirm',
+          () => _post(),
+          aliases: [CommandKey.save],
+          disabledReason: () => _posted || _saving ? _t('posted') : null,
+        ),
+        AppCommand(
+          'purchases.saveDraft',
+          _saveDraft,
+          disabledReason: () => _posted || _saving ? _t('posted') : null,
+        ),
+        AppCommand(
+          'purchases.print',
+          _printPostedPurchase,
+          aliases: [CommandKey.print],
+          disabledReason: () => !_posted || _saving
+              ? localizedCommandText(
+                  context,
+                  'Confirm the purchase before printing its posted document.',
+                  'لومړی پېرود تایید کړئ.',
+                  'ابتدا خرید را تأیید کنید.',
+                )
+              : null,
+        ),
+        AppCommand(
+          CommandKey.refresh,
+          _refreshCatalogs,
+          disabledReason: () => _saving ? _t('saving') : null,
+        ),
+        AppCommand(
+          CommandKey.cancel,
+          _requestLeave,
+          disabledReason: () => _saving ? _t('saving') : null,
+        ),
+        AppCommand(
+          'purchases.new',
+          () => AppCommandRegistry.maybeOf(context)!.invoke('nav.purchases'),
+          aliases: [CommandKey.add],
+        ),
+        AppCommand(CommandKey.search, () async {
+          setState(() => _showInvoiceOnSmall = false);
+          await WidgetsBinding.instance.endOfFrame;
+          await focusCommandSearch(_fabricSearch);
+        }),
+      ],
+      child: Theme(
+        data: _purchaseFieldTheme(context),
+        child: Directionality(
+          textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+          child: PopScope(
+            canPop: _allowPop,
+            onPopInvokedWithResult: (didPop, result) {
+              if (!didPop) _requestLeave();
+            },
+            child: Scaffold(
+              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+              body: SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 1000;
+                    return Column(
+                      children: [
+                        _buildPageHeader(wide, rtl),
+                        if (!wide) _buildSmallScreenTabs(),
+                        Expanded(
+                          child: _loading
+                              ? const Center(child: CircularProgressIndicator())
+                              : _error != null
+                              ? _buildLoadError()
+                              : wide
+                              ? Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    0,
+                                    16,
+                                    16,
+                                  ),
+                                  child: Row(
+                                    textDirection: TextDirection.ltr,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Expanded(
+                                        flex: 40,
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 8,
+                                          ),
+                                          child: KeyedSubtree(
+                                            key: const ValueKey(
+                                              'purchase-fabric-panel',
+                                            ),
+                                            child: _buildFabricPanel(rtl),
+                                          ),
                                         ),
-                                        child: _buildFabricPanel(rtl),
                                       ),
-                                    ),
-                                    Expanded(
-                                      flex: 45,
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(left: 8),
-                                        child: _buildInvoicePanel(rtl),
+                                      Expanded(
+                                        flex: 60,
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 8,
+                                          ),
+                                          child: KeyedSubtree(
+                                            key: const ValueKey(
+                                              'purchase-invoice-panel',
+                                            ),
+                                            child: _buildInvoicePanel(rtl),
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
+                                )
+                              : Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    0,
+                                    12,
+                                    12,
+                                  ),
+                                  child: _showInvoiceOnSmall
+                                      ? _buildInvoicePanel(rtl)
+                                      : _buildFabricPanel(rtl),
                                 ),
-                              )
-                            : Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  12,
-                                  0,
-                                  12,
-                                  12,
-                                ),
-                                child: _showInvoiceOnSmall
-                                    ? _buildInvoicePanel(rtl)
-                                    : _buildFabricPanel(rtl),
-                              ),
-                      ),
-                    ],
-                  );
-                },
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ),
         ),
       ),
-    ));
+    );
   }
 
   Widget _buildPageHeader(bool wide, bool rtl) {
@@ -1524,99 +1569,112 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
       icon: Icons.texture_outlined,
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _fabricSearch,
-              enabled: !_posted,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                labelText: _t('fabricSearchLabel'),
-                hintText: _t('fabricSearchHint'),
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _fabricSearch.text.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: _t('clearSearch'),
-                        onPressed: _fabricSearch.clear,
-                        icon: const Icon(Icons.close),
+        child: CustomScrollView(
+          key: const PageStorageKey('supplier-purchase-fabrics'),
+          controller: _fabricResultsScroll,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _fabricSearch,
+                    enabled: !_posted,
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      labelText: _t('fabricSearchLabel'),
+                      hintText: _t('fabricSearchHint'),
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _fabricSearch.text.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: _t('clearSearch'),
+                              onPressed: _fabricSearch.clear,
+                              icon: const Icon(Icons.close),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      ChoiceChip(
+                        label: Text(_t('allCategories')),
+                        selected: _categoryFilter == 'all',
+                        onSelected: (_) =>
+                            setState(() => _categoryFilter = 'all'),
                       ),
+                      ChoiceChip(
+                        label: Text(_t('clothingFabric')),
+                        selected: _categoryFilter == 'clothing',
+                        onSelected: (_) =>
+                            setState(() => _categoryFilter = 'clothing'),
+                      ),
+                      ChoiceChip(
+                        label: Text(_t('waistcoatFabric')),
+                        selected: _categoryFilter == 'waistcoat',
+                        onSelected: (_) =>
+                            setState(() => _categoryFilter = 'waistcoat'),
+                      ),
+                    ],
+                  ),
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: TextButton.icon(
+                      onPressed: _posted || _saving ? null : _addFabric,
+                      icon: const Icon(Icons.add),
+                      label: Text(_t('addFabric')),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                ChoiceChip(
-                  label: Text(_t('allCategories')),
-                  selected: _categoryFilter == 'all',
-                  onSelected: (_) => setState(() => _categoryFilter = 'all'),
-                ),
-                ChoiceChip(
-                  label: Text(_t('clothingFabric')),
-                  selected: _categoryFilter == 'clothing',
-                  onSelected: (_) =>
-                      setState(() => _categoryFilter = 'clothing'),
-                ),
-                ChoiceChip(
-                  label: Text(_t('waistcoatFabric')),
-                  selected: _categoryFilter == 'waistcoat',
-                  onSelected: (_) =>
-                      setState(() => _categoryFilter = 'waistcoat'),
-                ),
-              ],
-            ),
-            Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: TextButton.icon(
-                onPressed: _posted ? null : _addFabric,
-                icon: const Icon(Icons.add),
-                label: Text(_t('addFabric')),
-              ),
-            ),
-            Expanded(
-              child: _matchingFabrics.isEmpty
-                  ? Center(
+            _matchingFabrics.isEmpty
+                ? SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
                       child: Text(
                         _fabrics.isEmpty
                             ? _t('noFabrics')
                             : _t('noFabricMatches'),
                         textAlign: TextAlign.center,
                       ),
-                    )
-                  : ListView.separated(
-                      key: const PageStorageKey('supplier-purchase-fabrics'),
-                      controller: _fabricResultsScroll,
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      itemCount: _matchingFabrics.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final fabric = _matchingFabrics[index];
-                        final stock =
-                            (fabric['on_hand'] as num?) ??
-                            (fabric['available'] as num? ?? 0);
-                        return FabricPurchaseOptionCard(
-                          fabric: fabric,
-                          stockLabel: _t('stock'),
-                          stock:
-                              '${SupplierPurchaseLogic.formatMeters(stock)} m',
-                          buyingLabel: _t('buyingPrice'),
-                          buyingPrice: _money(
-                            (fabric['purchase_cost'] as num? ?? 0).toInt(),
-                          ),
-                          sellingLabel: _t('sellingPricePerMeter'),
-                          sellingPrice: _money(
-                            (fabric['selling_price'] as num? ?? 0).toInt(),
-                          ),
-                          addLabel: _t('addToInvoice'),
-                          onAdd: () => _addFabricToInvoice(fabric),
-                        );
-                      },
                     ),
-            ),
+                  )
+                : SliverList.separated(
+                    itemCount: _matchingFabrics.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final fabric = _matchingFabrics[index];
+                      final stock =
+                          (fabric['on_hand'] as num?) ??
+                          (fabric['available'] as num? ?? 0);
+                      return FabricPurchaseOptionCard(
+                        key: ValueKey('purchase-fabric-${fabric['id']}'),
+                        fabric: fabric,
+                        stockLabel: _t('stock'),
+                        stock: '${SupplierPurchaseLogic.formatMeters(stock)} m',
+                        buyingLabel: _t('buyingPrice'),
+                        buyingPrice: _money(
+                          (fabric['purchase_cost'] as num? ?? 0).toInt(),
+                        ),
+                        sellingLabel: _t('sellingPricePerMeter'),
+                        sellingPrice: _money(
+                          (fabric['selling_price'] as num? ?? 0).toInt(),
+                        ),
+                        addLabel: _t('addShort'),
+                        addedLabel: _t('added'),
+                        added: _lines.any(
+                          (line) => line.fabricId == fabric['id'],
+                        ),
+                        onAdd: _posted || _saving
+                            ? null
+                            : () => _addFabricToInvoice(fabric),
+                      );
+                    },
+                  ),
           ],
         ),
       ),
@@ -1629,47 +1687,118 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
       title: _t('purchaseInvoice'),
       description: _t('invoiceDescription'),
       icon: Icons.receipt_long_outlined,
-      child: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              key: const PageStorageKey('supplier-purchase-invoice'),
-              controller: _invoiceLinesScroll,
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              child: Column(
-                children: [
-                  _buildSupplierBlock(),
-                  _buildInvoiceLinesContent(),
-                  _buildTotalsAndPayment(),
-                ],
+      child: LayoutBuilder(
+        builder: (context, constraints) => Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                key: const PageStorageKey('supplier-purchase-invoice'),
+                controller: _invoiceLinesScroll,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Column(
+                  children: [
+                    if (_formError)
+                      Padding(
+                        key: const ValueKey('purchase-save-error'),
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline_rounded,
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(_t('saveError'))),
+                          ],
+                        ),
+                      ),
+                    if (_printMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _printFailed
+                                  ? Icons.info_outline_rounded
+                                  : Icons.check_circle_outline_rounded,
+                              color: _printFailed
+                                  ? Theme.of(context).colorScheme.error
+                                  : _paidColor,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(_printMessage!)),
+                          ],
+                        ),
+                      ),
+                    _buildSupplierBlock(),
+                    _buildInvoiceLinesContent(),
+                    _buildTotalsAndPayment(),
+                  ],
+                ),
               ),
             ),
-          ),
-          _buildInvoiceFooter(),
-        ],
+            _buildInvoiceFooter(compact: constraints.maxHeight < 350),
+          ],
+        ),
       ),
     ),
   );
 
-  Widget _buildInvoiceLinesContent() => _lines.isEmpty
-      ? Padding(
-          padding: const EdgeInsets.all(18),
-          child: Text(
-            _emptyLinesError ?? _t('emptyInvoice'),
-            textAlign: TextAlign.center,
-          ),
-        )
-      : Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-          child: Column(
-            children: [
-              for (var index = 0; index < _lines.length; index++) ...[
-                if (index > 0) const SizedBox(height: 8),
-                _buildInvoiceLineCard(index),
+  Widget _buildInvoiceLinesContent() => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          '${_t('fabricItems')} (${_lines.length})',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        if (_lines.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.playlist_add_rounded,
+                  size: 32,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _emptyLinesError ?? _t('emptyInvoice'),
+                  textAlign: TextAlign.center,
+                ),
               ],
-            ],
+            ),
+          )
+        else
+          LayoutBuilder(
+            builder: (context, constraints) => Column(
+              children: [
+                if (constraints.maxWidth >= purchaseTableBreakpoint)
+                  PurchaseInvoiceTableHeader(
+                    fabricLabel: _t('fabric'),
+                    quantityLabel: _t('quantityMeters'),
+                    rateLabel: _t('actualBuyingPrice'),
+                    totalLabel: _t('lineTotal'),
+                    removeLabel: _t('remove'),
+                  ),
+                for (var index = 0; index < _lines.length; index++) ...[
+                  if (index > 0) const SizedBox(height: 6),
+                  _buildInvoiceLineCard(index),
+                ],
+              ],
+            ),
           ),
-        );
+      ],
+    ),
+  );
 
   Widget _buildInvoiceLineCard(int index) {
     final line = _lines[index];
@@ -1680,6 +1809,7 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
         SupplierPurchaseLogic.parseQuantityMilli(line.quantity.text) ?? 0;
     final price = SupplierPurchaseLogic.parsePriceMinor(line.cost.text) ?? 0;
     return PurchaseInvoiceLineCard(
+      key: line.rowKey,
       fabricName: (fabric?['name'] ?? '').toString(),
       fabricCode: (fabric?['code'] ?? '').toString(),
       color: (fabric?['color'] ?? '').toString(),
@@ -1705,84 +1835,229 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
     );
   }
 
+  Widget _fieldLabel(String label, Widget child) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      ),
+      const SizedBox(height: 5),
+      child,
+    ],
+  );
+
   Widget _buildSupplierBlock() {
     final supplier = _suppliers
         .where((row) => row['id'] == _supplierId)
         .firstOrNull;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 640) {
+          return _buildCompactSupplierBlock(supplier);
+        }
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _fieldLabel(
+                _t('supplier'),
+                OutlinedButton.icon(
+                  key: const ValueKey('purchase-supplier-picker'),
+                  onPressed: _posted || _saving ? null : _pickSupplier,
+                  style: OutlinedButton.styleFrom(
+                    alignment: AlignmentDirectional.centerStart,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                  ),
+                  icon: const Icon(Icons.storefront_rounded, size: 20),
+                  label: Text(
+                    supplier == null
+                        ? _t('chooseSupplier')
+                        : '${supplier['name']}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              if (_supplierError != null)
+                Text(
+                  _supplierError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              Wrap(
+                spacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (supplier != null &&
+                      '${supplier['phone'] ?? ''}'.isNotEmpty)
+                    Text(
+                      '${supplier['phone']}',
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  TextButton.icon(
+                    onPressed: _posted || _saving ? null : _addSupplier,
+                    icon: const Icon(Icons.person_add_alt_rounded, size: 17),
+                    label: Text(_t('addSupplier')),
+                  ),
+                  if (supplier != null)
+                    TextButton.icon(
+                      onPressed: _saving ? null : _showSelectedSupplierLedger,
+                      icon: const Icon(Icons.history_rounded, size: 17),
+                      label: Text(_t('viewLedger')),
+                    ),
+                ],
+              ),
+              if (supplier != null) _supplierSummary(supplier),
+              const SizedBox(height: 8),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final invoice = _fieldLabel(
+                    _t('invoiceNumber'),
+                    TextField(
+                      controller: _invoice,
+                      enabled: !_posted && !_saving,
+                      textInputAction: TextInputAction.next,
+                      decoration: InputDecoration(
+                        labelText: _t('invoiceNumber'),
+                        floatingLabelBehavior: FloatingLabelBehavior.never,
+                        isDense: true,
+                      ),
+                    ),
+                  );
+                  final date = _fieldLabel(
+                    _t('date'),
+                    OutlinedButton.icon(
+                      onPressed: _posted || _saving ? null : _chooseDate,
+                      icon: const Icon(Icons.calendar_month_rounded, size: 18),
+                      label: Text(
+                        formatDate(
+                          _date.toIso8601String(),
+                          locale: Localizations.localeOf(context)
+                              .toLanguageTag(),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 14,
+                        ),
+                      ),
+                    ),
+                  );
+                  return constraints.maxWidth < 380
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [invoice, const SizedBox(height: 8), date],
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 3, child: invoice),
+                            const SizedBox(width: 12),
+                            Expanded(flex: 2, child: date),
+                          ],
+                        );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCompactSupplierBlock(Map<String, Object?>? supplier) {
+    final enabled = !_posted && !_saving;
+    Widget labeled(String label, Widget child) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 32,
+          child: Align(
+            alignment: AlignmentDirectional.bottomStart,
+            child: Text(
+              label,
+              maxLines: 2,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+        const SizedBox(height: 5),
+        child,
+      ],
+    );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 5),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: TextField(
-                  controller: _supplierSearch,
-                  enabled: !_posted,
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    labelText: '${_t('supplier')} *',
-                    hintText: _t('supplierHint'),
-                    errorText: _supplierError,
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    suffixIcon: IconButton(
-                      tooltip: _t('selectSupplier'),
-                      onPressed: _posted
-                          ? null
-                          : () => setState(
-                              () =>
-                                  _showSupplierOptions = !_showSupplierOptions,
-                            ),
-                      icon: Icon(
-                        _showSupplierOptions ||
-                                _supplierSearch.text.trim().isNotEmpty
-                            ? Icons.arrow_drop_up
-                            : Icons.arrow_drop_down,
+                flex: 3,
+                child: labeled(
+                  _t('supplier'),
+                  OutlinedButton.icon(
+                    key: const ValueKey('purchase-supplier-picker'),
+                    onPressed: enabled ? _pickSupplier : null,
+                    style: OutlinedButton.styleFrom(
+                      alignment: AlignmentDirectional.centerStart,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 14,
                       ),
                     ),
+                    icon: const Icon(Icons.storefront_rounded, size: 18),
+                    label: Text(
+                      supplier == null
+                          ? _t('chooseSupplier')
+                          : '${supplier['name']}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
               ),
-              IconButton(
-                tooltip: _t('addSupplier'),
-                onPressed: _posted || _saving ? null : _addSupplier,
-                icon: const Icon(Icons.person_add_alt_1),
-              ),
-              IconButton(
-                tooltip: _t('clearInvoice'),
-                onPressed: _posted || _saving ? null : _clearInvoice,
-                icon: const Icon(Icons.delete_sweep_outlined),
-              ),
-            ],
-          ),
-          if (_supplierSearch.text.trim().isNotEmpty || _showSupplierOptions)
-            _supplierSearchResults(),
-          if (supplier != null) _supplierSummary(supplier),
-          Row(
-            children: [
+              const SizedBox(width: 12),
               Expanded(
-                child: TextField(
-                  controller: _invoice,
-                  enabled: !_posted,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: _t('invoiceNumber'),
-                    isDense: true,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: InkWell(
-                  onTap: _posted ? null : _chooseDate,
-                  child: InputDecorator(
+                flex: 2,
+                child: labeled(
+                  _t('invoiceNumber'),
+                  TextField(
+                    controller: _invoice,
+                    enabled: enabled,
+                    textInputAction: TextInputAction.next,
                     decoration: InputDecoration(
-                      labelText: _t('date'),
-                      suffixIcon: const Icon(Icons.calendar_month, size: 18),
+                      labelText: _t('invoiceNumber'),
+                      floatingLabelBehavior: FloatingLabelBehavior.never,
                       isDense: true,
                     ),
-                    child: Text(
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: labeled(
+                  _t('date'),
+                  OutlinedButton.icon(
+                    onPressed: enabled ? _chooseDate : null,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 14,
+                      ),
+                    ),
+                    icon: const Icon(Icons.calendar_month_rounded, size: 17),
+                    label: Text(
                       formatDate(
                         _date.toIso8601String(),
                         locale: Localizations.localeOf(context).toLanguageTag(),
@@ -1795,63 +2070,103 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
               ),
             ],
           ),
+          if (_supplierError != null)
+            Text(
+              _supplierError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          Wrap(
+            spacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (supplier != null) ...[
+                Text(
+                  '${supplier['phone'] ?? ''}',
+                  textDirection: TextDirection.ltr,
+                  style: const TextStyle(fontSize: 12),
+                ),
+                Text(
+                  '${_t('existingPayable')}: ${_money(_supplierPayableBefore)}',
+                  key: const ValueKey('purchase-previous-balance'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _supplierPayableBefore > 0
+                        ? Theme.of(context).colorScheme.error
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (_supplierAdvanceAvailable > 0)
+                  Text(
+                    '${_t('availableAdvance')}: ${_money(_supplierAdvanceAvailable)}',
+                    style: TextStyle(fontSize: 12, color: _paidColor),
+                  ),
+              ],
+              TextButton.icon(
+                onPressed: enabled ? _addSupplier : null,
+                icon: const Icon(Icons.person_add_alt_rounded, size: 17),
+                label: Text(_t('addSupplier')),
+              ),
+              if (supplier != null)
+                TextButton.icon(
+                  onPressed: _saving ? null : _showSelectedSupplierLedger,
+                  icon: const Icon(Icons.history_rounded, size: 17),
+                  label: Text(_t('viewLedger')),
+                ),
+            ],
+          ),
         ],
       ),
     );
   }
 
+  Color get _paidColor => Theme.of(context).brightness == Brightness.dark
+      ? const Color(0xff86efac)
+      : const Color(0xff15803d);
+
   Widget _supplierSummary(Map<String, Object?> supplier) {
-    final balance = (supplier['balance'] as num? ?? 0).toInt();
-    final payable = balance > 0 ? balance : 0;
+    final payable = _supplierPayableBefore;
+    final colors = Theme.of(context).colorScheme;
     return Container(
-      margin: const EdgeInsets.only(top: 5, bottom: 6),
+      key: const ValueKey('purchase-previous-balance'),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(12),
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 4,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  (supplier['name'] ?? '').toString(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: _showSelectedSupplierLedger,
-                child: Text(_t('viewLedger')),
-              ),
-            ],
+          Text(
+            '${_t('existingPayable')}: ${_money(payable)}',
+            style: TextStyle(
+              fontSize: 12,
+              color: payable > 0 ? colors.error : colors.onSurfaceVariant,
+            ),
           ),
-          Text((supplier['phone'] ?? '').toString()),
-          Wrap(
-            spacing: 12,
-            children: [
-              Text(
-                '${_t('existingPayable')}: ${_money(payable)}',
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-              Text(
-                '${_t('availableAdvance')}: ${_money(_supplierAdvanceAvailable)}',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.secondary,
-                ),
-              ),
-            ],
-          ),
+          if (_supplierAdvanceAvailable > 0)
+            Text(
+              '${_t('availableAdvance')}: ${_money(_supplierAdvanceAvailable)}',
+              style: TextStyle(fontSize: 12, color: _paidColor),
+            ),
         ],
       ),
     );
+  }
+
+  void _payFull() {
+    _paid.text = _priceInput((_grandTotal - _advancePaid).clamp(0, 1 << 60));
+    setState(() => _paidError = null);
+  }
+
+  void _buyOnCredit() {
+    _paid.text = '0';
+    _advanceApplied.text = '0';
+    setState(() {
+      _applySupplierAdvance = false;
+      _paidError = null;
+      _advanceError = null;
+    });
   }
 
   Widget _buildTotalsAndPayment() {
@@ -1859,148 +2174,204 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
       ..._paymentMethods,
       _method,
     }.where((value) => value.isNotEmpty).toList();
+    final colors = Theme.of(context).colorScheme;
+    final enabled = !_posted && !_saving;
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        border: Border(
-          top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-        ),
+        border: Border(top: BorderSide(color: colors.outlineVariant)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _moneyRow(_t('subtotal'), _subtotal),
-          Row(
-            children: [
-              Expanded(
-                child: _moneyInput(
-                  _discount,
-                  _t('discountFixed'),
-                  errorText: _discountError,
-                  enabled: !_posted,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _moneyInput(
-                  _extraCost,
-                  _t('extraCosts'),
-                  errorText: _extraCostError,
-                  enabled: !_posted,
-                ),
-              ),
-            ],
+          Text(
+            _t('totalsPayment'),
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
+          const SizedBox(height: 8),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  initialValue: methods.contains(_method) ? _method : null,
-                  decoration: InputDecoration(
-                    labelText: _t('paymentMethod'),
-                    isDense: true,
-                  ),
-                  items: methods
-                      .map(
-                        (method) => DropdownMenuItem(
-                          value: method,
-                          child: Text(
-                            _paymentMethodLabel(method),
-                            overflow: TextOverflow.ellipsis,
+                child: _moneyInput(
+                  _paid,
+                  _t('paidNow'),
+                  errorText: _paidError,
+                  enabled: enabled,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _fieldLabel(
+                  _t('paymentMethod'),
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    initialValue: methods.contains(_method) ? _method : null,
+                    decoration: const InputDecoration(isDense: true),
+                    items: methods
+                        .map(
+                          (method) => DropdownMenuItem(
+                            value: method,
+                            child: Text(
+                              _paymentMethodLabel(method),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: _posted || _saving
-                      ? null
-                      : (value) => setState(() {
-                          _method = value ?? _method;
-                          _dirty = true;
-                        }),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: _paid,
-                  enabled: !_posted,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: _t('paidNow'),
-                    suffixText: 'AFN',
-                    isDense: true,
-                    errorText: _paidError,
+                        )
+                        .toList(),
+                    onChanged: !enabled
+                        ? null
+                        : (value) => setState(() {
+                            _method = value ?? _method;
+                            _dirty = true;
+                          }),
                   ),
                 ),
               ),
             ],
           ),
-          if (_supplierId != null)
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton.icon(
+                key: const ValueKey('purchase-pay-full'),
+                onPressed: enabled ? _payFull : null,
+                icon: Icon(
+                  Icons.payments_outlined,
+                  size: 17,
+                  color: _paidColor,
+                ),
+                label: Text(_t('payFull')),
+              ),
+              TextButton.icon(
+                key: const ValueKey('purchase-buy-credit'),
+                onPressed: enabled ? _buyOnCredit : null,
+                icon: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  size: 17,
+                ),
+                label: Text(_t('buyCredit')),
+              ),
+            ],
+          ),
+          if (_supplierId != null &&
+              (_supplierAdvanceAvailable > 0 || _applySupplierAdvance)) ...[
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              visualDensity: VisualDensity.compact,
               value: _applySupplierAdvance,
-              onChanged: _posted || _saving || _supplierAdvanceAvailable <= 0
+              onChanged: !enabled || _supplierAdvanceAvailable <= 0
                   ? null
-                  : (value) => _setApplyAdvance(value ?? false),
+                  : (v) => _setApplyAdvance(v ?? false),
               title: Text(_t('applyAdvance')),
-              subtitle: Text(
-                '${_t('availableAdvance')}: ${_money(_supplierAdvanceAvailable)}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
               controlAffinity: ListTileControlAffinity.leading,
             ),
-          if (_applySupplierAdvance)
-            _moneyInput(
-              _advanceApplied,
-              _t('advanceToApply'),
-              errorText: _advanceError,
-              enabled: !_posted,
+            if (_applySupplierAdvance)
+              _moneyInput(
+                _advanceApplied,
+                _t('advanceToApply'),
+                errorText: _advanceError,
+                enabled: enabled,
+              ),
+          ],
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              key: const ValueKey('purchase-adjustments'),
+              onPressed: () =>
+                  setState(() => _showAdjustments = !_showAdjustments),
+              icon: Icon(
+                _showAdjustments
+                    ? Icons.expand_less_rounded
+                    : Icons.expand_more_rounded,
+                size: 18,
+              ),
+              label: Text(_t('adjustments')),
             ),
-          _moneyRow(_t('remaining'), _remainingPayable),
+          ),
+          if (_showAdjustments)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _moneyInput(
+                      _discount,
+                      _t('discountFixed'),
+                      errorText: _discountError,
+                      enabled: enabled,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _moneyInput(
+                      _extraCost,
+                      _t('extraCosts'),
+                      errorText: _extraCostError,
+                      enabled: enabled,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          _moneyRow(_t('subtotal'), _subtotal),
+          _moneyRow(_t('discountFixed'), -_readMoney(_discount)),
+          _moneyRow(_t('extraCosts'), _readMoney(_extraCost)),
+          _moneyRow(
+            _t('paidNow'),
+            _cashPaid,
+            color: _paidColor,
+            icon: Icons.check_circle_outline_rounded,
+          ),
+          if (_advancePaid > 0)
+            _moneyRow(_t('advanceApplied'), _advancePaid, color: _paidColor),
           if (_cashAdvance > 0)
-            Align(
-              alignment: AlignmentDirectional.centerStart,
+            Container(
+              key: const ValueKey('purchase-new-advance'),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: colors.secondaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: Text(
                 _t('cashAdvanceNotice')
                     .replaceAll('{amount}', _money(_cashAdvance)),
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: Theme.of(context).colorScheme.tertiary),
+                style: TextStyle(color: colors.onSecondaryContainer),
               ),
             ),
-          Material(
-            color: Colors.transparent,
-            child: ExpansionTile(
-              key: const PageStorageKey('purchase-extra-details'),
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: const EdgeInsets.only(bottom: 6),
-              title: Text(_t('optionalDetails')),
-              children: [
+          ExpansionTile(
+            key: const PageStorageKey('purchase-extra-details'),
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              _t('optionalDetails'),
+              style: const TextStyle(fontSize: 13),
+            ),
+            children: [
+              _fieldLabel(
+                _t('paymentReference'),
                 TextField(
                   controller: _paymentReference,
-                  enabled: !_posted,
+                  enabled: enabled,
                   decoration: InputDecoration(
                     labelText: _t('paymentReference'),
-                    isDense: true,
+                    floatingLabelBehavior: FloatingLabelBehavior.never,
                   ),
                 ),
-                const SizedBox(height: 8),
+              ),
+              const SizedBox(height: 8),
+              _fieldLabel(
+                _t('notes'),
                 TextField(
                   controller: _notes,
-                  enabled: !_posted,
+                  enabled: enabled,
                   decoration: InputDecoration(
                     labelText: _t('notes'),
-                    isDense: true,
+                    floatingLabelBehavior: FloatingLabelBehavior.never,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -2014,60 +2385,161 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
     _ => method,
   };
 
-  Widget _buildInvoiceFooter() => Container(
-    padding: const EdgeInsets.fromLTRB(12, 7, 12, 9),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface,
-      border: Border(
-        top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+  Widget _buildInvoiceFooter({bool compact = false}) {
+    final colors = Theme.of(context).colorScheme;
+    final compactStyle = compact
+        ? ButtonStyle(
+            textStyle: WidgetStatePropertyAll(
+              Theme.of(context).textTheme.labelLarge!.copyWith(fontSize: 12),
+            ),
+            padding: WidgetStatePropertyAll(
+              EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            ),
+            minimumSize: WidgetStatePropertyAll(Size(0, 36)),
+            visualDensity: VisualDensity.compact,
+          )
+        : null;
+    return Container(
+      key: const ValueKey('purchase-footer'),
+      padding: EdgeInsets.fromLTRB(12, compact ? 6 : 10, 12, compact ? 6 : 10),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(top: BorderSide(color: colors.outlineVariant)),
       ),
-    ),
-    child: Column(
-      children: [
-        _moneyRow(_t('grandTotal'), _grandTotal, emphasize: true),
-        Wrap(
-          alignment: WrapAlignment.end,
-          spacing: 7,
-          runSpacing: 6,
-          children: _posted
-              ? [
-                  OutlinedButton.icon(
-                    onPressed: _printPostedPurchase,
-                    icon: const Icon(Icons.print_outlined),
-                    label: Text(_t('reprint')),
-                  ),
-                  FilledButton.icon(
-                    onPressed: _requestLeave,
-                    icon: const Icon(Icons.done),
-                    label: Text(_t('done')),
-                  ),
-                ]
-              : [
-                  OutlinedButton.icon(
-                    onPressed: _saving ? null : _saveDraft,
-                    icon: const Icon(Icons.save_outlined),
-                    label: Text(_t('saveDraft')),
-                  ),
-                  CommandButton(id: 'action.save', child: FilledButton.icon(
-                    onPressed: _saving ? null : () => _post(),
-                    icon: _saving
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.check_circle_outline),
-                    label: Text(_t('confirmPurchase')),
-                  )),
-                  OutlinedButton.icon(
-                    onPressed: _saving ? null : () => _post(printAfter: true),
-                    icon: const Icon(Icons.print_outlined),
-                    label: Text(_t('confirmAndPrint')),
-                  ),
-                ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _footerAmount(
+                  _t('grandTotal'),
+                  _grandTotal,
+                  colors.primary,
+                  Icons.receipt_long_rounded,
+                  const ValueKey('purchase-grand-total'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _footerAmount(
+                  _t('remaining'),
+                  _remainingPayable,
+                  _remainingPayable > 0 ? colors.error : _paidColor,
+                  _remainingPayable > 0
+                      ? Icons.account_balance_wallet_outlined
+                      : Icons.check_circle_outline_rounded,
+                  const ValueKey('purchase-remaining'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 6,
+            children: _posted
+                ? [
+                    OutlinedButton.icon(
+                      onPressed: _saving ? null : _printPostedPurchase,
+                      icon: const Icon(Icons.print_outlined, size: 18),
+                      label: Text(_t('reprint')),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _saving ? null : _requestLeave,
+                      icon: const Icon(Icons.done_rounded, size: 18),
+                      label: Text(_t('done')),
+                    ),
+                  ]
+                : [
+                    if (compact)
+                      TextButton(
+                        style: compactStyle,
+                        onPressed: _saving ? null : _saveDraft,
+                        child: Text(_t('saveDraft')),
+                      )
+                    else
+                      TextButton.icon(
+                        onPressed: _saving ? null : _saveDraft,
+                        icon: const Icon(Icons.save_outlined, size: 18),
+                        label: Text(_t('saveDraft')),
+                      ),
+                    if (compact)
+                      OutlinedButton(
+                        style: compactStyle,
+                        onPressed: _saving
+                            ? null
+                            : () => _post(printAfter: true),
+                        child: Text(_t('confirmAndPrint')),
+                      )
+                    else
+                      OutlinedButton.icon(
+                        onPressed: _saving
+                            ? null
+                            : () => _post(printAfter: true),
+                        icon: const Icon(Icons.print_outlined, size: 18),
+                        label: Text(_t('confirmAndPrint')),
+                      ),
+                    CommandButton(
+                      id: 'action.save',
+                      child: FilledButton.icon(
+                        style: compactStyle,
+                        key: const ValueKey('purchase-confirm'),
+                        onPressed: _saving ? null : () => _post(),
+                        icon: _posting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.check_circle_outline_rounded,
+                                size: 18,
+                              ),
+                        label: Text(_t('confirmPurchase')),
+                      ),
+                    ),
+                  ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _footerAmount(
+    String label,
+    int amount,
+    Color color,
+    IconData icon,
+    Key key,
+  ) => Column(
+    key: key,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Text(label, style: TextStyle(fontSize: 12, color: color)),
+          ),
+        ],
+      ),
+      Text(
+        _money(amount),
+        textDirection: TextDirection.ltr,
+        style: TextStyle(
+          fontSize: 19,
+          fontWeight: FontWeight.w800,
+          color: color,
         ),
-      ],
-    ),
+      ),
+    ],
   );
 
   Widget _moneyInput(
@@ -2075,43 +2547,56 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
     String label, {
     String? errorText,
     bool enabled = true,
-  }) => TextField(
-    controller: controller,
-    enabled: enabled && !_saving,
-    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-    textInputAction: TextInputAction.next,
-    decoration: InputDecoration(
-      labelText: label,
-      suffixText: 'AFN',
-      isDense: true,
-      errorText: errorText,
+  }) => _fieldLabel(
+    label,
+    TextField(
+      controller: controller,
+      enabled: enabled && !_saving,
+      textDirection: TextDirection.ltr,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      textInputAction: TextInputAction.next,
+      decoration: InputDecoration(
+        labelText: label,
+        floatingLabelBehavior: FloatingLabelBehavior.never,
+        hintText: '0',
+        suffixText: 'AFN',
+        isDense: true,
+        errorText: errorText,
+        errorMaxLines: 3,
+      ),
     ),
   );
 
-  Widget _moneyRow(String label, int value, {bool emphasize = false}) =>
+  Widget _moneyRow(String label, int value, {Color? color, IconData? icon}) =>
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (icon != null) ...[
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+            ],
             Expanded(
               child: Text(
                 label,
                 style: TextStyle(
-                  color: emphasize
-                      ? Theme.of(context).colorScheme.onSurface
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: emphasize ? FontWeight.w800 : FontWeight.w500,
+                  fontSize: 12,
+                  color:
+                      color ?? Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
-            Text(
-              _money(value),
-              style: TextStyle(
-                fontSize: emphasize ? 17 : 13,
-                fontWeight: emphasize ? FontWeight.w800 : FontWeight.w600,
-                color: emphasize
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurface,
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                _money(value),
+                textDirection: TextDirection.ltr,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
               ),
             ),
           ],
@@ -2667,5 +3152,50 @@ const _words = <String, Map<String, String>>{
     'total': 'مجموع',
     'loadError': 'اطلاعات خرید بارگیری نشد.',
     'retry': 'تلاش دوباره',
+  },
+};
+
+const _purchaseRedesignWords = <String, Map<String, String>>{
+  'en': {
+    'addShort': 'Add',
+    'added': 'Added',
+    'alreadyAdded': 'Already added. Edit the quantity on the invoice.',
+    'chooseSupplier': 'Choose supplier',
+    'adjustments': 'Discount and purchase charges',
+    'payFull': 'Pay Full Amount',
+    'buyCredit': 'Buy on Credit',
+    'emptyInvoice':
+        'Find fabric, then select Add to start your purchase invoice.',
+    'remaining': 'Owed for this purchase',
+    'posted': 'Confirmed',
+    'saving': 'Saving purchase…',
+  },
+  'ps': {
+    'addShort': 'زیاتول',
+    'added': 'زیات شو',
+    'alreadyAdded': 'دا ټوکر زیات شوی دی. په بل کې یې اندازه بدله کړئ.',
+    'chooseSupplier': 'عرضه کوونکی وټاکئ',
+    'adjustments': 'تخفیف او د پېرود لګښتونه',
+    'payFull': 'بشپړه تادیه',
+    'buyCredit': 'په پور پېرود',
+    'emptyInvoice': 'ټوکر ولټوئ او د بل د پیل لپاره د زیاتولو تڼۍ ووهئ.',
+    'remaining': 'د دې پېرود پاتې پور',
+    'posted': 'تایید شو',
+    'saving': 'پېرود ساتل کېږي…',
+  },
+  'fa': {
+    'addShort': 'افزودن',
+    'added': 'افزوده شد',
+    'alreadyAdded':
+        'این پارچه افزوده شده است. مقدار آن را در فاکتور تغییر دهید.',
+    'chooseSupplier': 'انتخاب تأمین‌کننده',
+    'adjustments': 'تخفیف و هزینه‌های خرید',
+    'payFull': 'پرداخت کامل',
+    'buyCredit': 'خرید نسیه',
+    'emptyInvoice':
+        'پارچه را جستجو کرده و برای شروع فاکتور، افزودن را انتخاب کنید.',
+    'remaining': 'بدهی این خرید',
+    'posted': 'تأیید شد',
+    'saving': 'خرید در حال ذخیره شدن است…',
   },
 };

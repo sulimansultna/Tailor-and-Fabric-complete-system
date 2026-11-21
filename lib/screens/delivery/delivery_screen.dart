@@ -18,6 +18,7 @@ import '../../models/garment.dart';
 import '../../reports/order_payment_receipt_service.dart';
 import '../dashboard/dashboard_screen.dart';
 import 'delivery_board_logic.dart';
+import '../../widgets/responsive_layout.dart';
 
 class DeliveryBoardState {
   String dateFilter = 'all';
@@ -437,7 +438,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         runSpacing: 10,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          SizedBox(
+          AdaptiveWidth(
             width: 270,
             child: TextField(
               decoration: InputDecoration(
@@ -453,7 +454,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               controller: searchController,
             ),
           ),
-          SizedBox(
+          AdaptiveWidth(
             width: 200,
             child: DropdownButton<String>(
               isExpanded: true,
@@ -486,7 +487,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               },
             ),
           ),
-          SizedBox(
+          AdaptiveWidth(
             width: 190,
             child: DropdownButton<String>(
               isExpanded: true,
@@ -509,7 +510,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               },
             ),
           ),
-          SizedBox(
+          AdaptiveWidth(
             width: 190,
             child: DropdownButton<String>(
               isExpanded: true,
@@ -532,7 +533,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               },
             ),
           ),
-          SizedBox(
+          AdaptiveWidth(
             width: 190,
             child: DropdownButton<int?>(
               isExpanded: true,
@@ -564,7 +565,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               },
             ),
           ),
-          SizedBox(
+          AdaptiveWidth(
             width: 175,
             child: DropdownButton<int>(
               isExpanded: true,
@@ -587,7 +588,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               },
             ),
           ),
-          SizedBox(
+          AdaptiveWidth(
             width: 270,
             child: SegmentedButton<bool>(
               segments: [

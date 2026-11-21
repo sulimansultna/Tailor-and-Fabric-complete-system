@@ -60,6 +60,52 @@ abstract final class ResponsiveLayout {
   }
 }
 
+/// Preferred width that shrinks when the parent is narrower.
+///
+/// A [Wrap] gives each child the full row width as its maximum, so a fixed
+/// [SizedBox] wider than that row overflows. This widget stays at [width]
+/// when there is room and uses the available width when there is not.
+class AdaptiveWidth extends StatelessWidget {
+  const AdaptiveWidth({super.key, required this.width, required this.child});
+
+  final double width;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final maxWidth = constraints.maxWidth;
+      final resolved = !maxWidth.isFinite
+          ? fitContentWidth(context, width)
+          : math.min(width, math.max(0.0, maxWidth));
+      return SizedBox(width: resolved, child: child);
+    },
+  );
+}
+
+/// Largest dialog width that still fits the current window.
+double fitContentWidth(
+  BuildContext context,
+  double preferred, {
+  double gutter = 48,
+}) {
+  final available = MediaQuery.sizeOf(context).width - gutter;
+  if (!available.isFinite || available <= 0) return preferred;
+  return math.min(preferred, available);
+}
+
+/// Largest dialog height that still fits above the keyboard and window edges.
+double fitContentHeight(
+  BuildContext context,
+  double preferred, {
+  double gutter = 120,
+}) {
+  final media = MediaQuery.of(context);
+  final available = media.size.height - media.viewInsets.vertical - gutter;
+  if (!available.isFinite || available <= 0) return preferred;
+  return math.min(preferred, math.max(160, available));
+}
+
 /// A stable Wrap keeps field state and focus as columns change during resize.
 class ResponsiveFormColumns extends StatelessWidget {
   const ResponsiveFormColumns({

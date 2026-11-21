@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/formatters.dart';
+import '../../../l10n/app_localizations_extensions.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../dashboard_strings.dart';
+import 'dashboard_panel.dart';
 
 class OrdersAttentionSection extends StatefulWidget {
   const OrdersAttentionSection({
@@ -34,14 +37,17 @@ class _OrdersAttentionSectionState extends State<OrdersAttentionSection> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final locale = Localizations.localeOf(context).toLanguageTag();
     final tabs = [
-      (widget.strings.get('dueToday'), widget.dueToday),
-      (widget.strings.get('overdue'), widget.overdue),
-      (widget.strings.get('ready'), widget.ready),
+      (widget.strings.get('dueToday'), widget.dueToday, DashboardTone.warning),
+      (widget.strings.get('overdue'), widget.overdue, DashboardTone.due),
+      (widget.strings.get('ready'), widget.ready, DashboardTone.good),
     ];
     final rows = tabs[selectedTab].$2;
-    return _SectionCard(
+    return DashboardPanel(
       title: widget.strings.get('attention'),
+      accent: dashboardToneColor(context, tabs[selectedTab].$3),
       trailing: TextButton(
         onPressed: widget.onViewAll,
         child: Text(widget.strings.get('viewAll')),
@@ -51,34 +57,46 @@ class _OrdersAttentionSectionState extends State<OrdersAttentionSection> {
         children: [
           Wrap(
             spacing: 8,
+            runSpacing: 8,
             children: [
               for (var i = 0; i < tabs.length; i++)
                 ChoiceChip(
                   label: Text('${tabs[i].$1} (${tabs[i].$2.length})'),
                   selected: selectedTab == i,
                   onSelected: (_) => setState(() => selectedTab = i),
-                  selectedColor: Theme.of(context).colorScheme.primary
-                      .withValues(alpha: .14),
+                  selectedColor: dashboardToneColor(
+                    context,
+                    tabs[i].$3,
+                  ).withValues(alpha: .16),
+                  labelStyle: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: selectedTab == i
+                        ? dashboardToneColor(context, tabs[i].$3)
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
                   side: BorderSide(
                     color: selectedTab == i
-                        ? Theme.of(context).colorScheme.primary
+                        ? dashboardToneColor(context, tabs[i].$3)
                         : Theme.of(context).colorScheme.outlineVariant,
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           if (rows.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 16),
               child: Center(child: Text(widget.strings.get('emptyOrders'))),
             )
           else
             for (final order in rows.take(5))
               _AttentionOrderRow(
                 order: order,
-                tab: selectedTab,
+                overdue: selectedTab == 1,
+                ready: selectedTab == 2,
                 strings: widget.strings,
+                locale: locale,
+                l10n: l10n,
                 onOpen: () => widget.onOpenCustomer(order),
                 onPayment: () => widget.onReceivePayment(order),
                 onDelivered: () => widget.onMarkDelivered(order),
@@ -92,168 +110,69 @@ class _OrdersAttentionSectionState extends State<OrdersAttentionSection> {
 class _AttentionOrderRow extends StatelessWidget {
   const _AttentionOrderRow({
     required this.order,
-    required this.tab,
+    required this.overdue,
+    required this.ready,
     required this.strings,
+    required this.locale,
+    required this.l10n,
     required this.onOpen,
     required this.onPayment,
     required this.onDelivered,
   });
 
   final Map<String, Object?> order;
-  final int tab;
+  final bool overdue;
+  final bool ready;
   final DashboardStrings strings;
+  final String locale;
+  final AppLocalizations l10n;
   final VoidCallback onOpen;
   final VoidCallback onPayment;
   final VoidCallback onDelivered;
 
   @override
   Widget build(BuildContext context) {
-    final locale = Localizations.localeOf(context).toLanguageTag();
     final remaining =
         ((order['total'] as int?) ?? 0) - ((order['paid'] as int?) ?? 0);
-    final date = (order['due_date'] as String?) ?? '—';
-    final status = (order['status'] as String?) ?? '';
-    final colors = Theme.of(context).colorScheme;
-    final accent = tab == 1
-        ? colors.error
-        : tab == 0
-        ? colors.tertiary
-        : colors.secondary;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
+    final status = '${order['status'] ?? ''}';
+    final garment = strings.garmentSummary('${order['garment_summary'] ?? ''}');
+    final date = '${order['due_date'] ?? '—'}';
+    final paid = remaining <= 0;
+    return DashboardOrderTile(
+      title:
+          '${dashboardBillLabel(order, l10n)} · ${order['customer_name'] ?? ''}',
+      subtitle: [
+        if (garment.isNotEmpty) garment,
+        date,
+      ].join(' · '),
+      statusLabel: strings.get(status),
+      tone: toneForStatus(status, overdue: overdue),
+      amount: formatMoney(remaining < 0 ? 0 : remaining, locale: locale),
+      amountCaption: paid ? l10n.dashPaid : l10n.dashAmountDue,
+      amountTone: paid ? DashboardTone.good : DashboardTone.due,
+      onTap: onOpen,
+      actions: Wrap(
+        spacing: 4,
+        children: [
+          TextButton.icon(
+            onPressed: onOpen,
+            icon: const Icon(Icons.open_in_new, size: 16),
+            label: Text(strings.get('openOrder')),
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 4,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: accent,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${order['number'] ?? 'Order'}  ·  ${order['customer_name'] ?? ''}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '${strings.garmentSummary('${order['garment_summary'] ?? ''}')}  ·  $date',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      formatMoney(remaining, locale: locale),
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    Text(
-                      strings.get(status),
-                      style: TextStyle(
-                        color: accent,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          if (remaining > 0)
+            TextButton.icon(
+              onPressed: onPayment,
+              icon: const Icon(Icons.payments_outlined, size: 16),
+              label: Text(strings.get('receivePayment')),
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 4,
-              runSpacing: 0,
-              children: [
-                TextButton.icon(
-                  onPressed: onOpen,
-                  icon: const Icon(Icons.open_in_new, size: 16),
-                  label: Text(strings.get('openOrder')),
-                ),
-                if (remaining > 0)
-                  TextButton.icon(
-                    onPressed: onPayment,
-                    icon: const Icon(Icons.payments_outlined, size: 16),
-                    label: Text(strings.get('receivePayment')),
-                  ),
-                if (tab == 2)
-                  TextButton.icon(
-                    onPressed: onDelivered,
-                    icon: const Icon(Icons.check_circle_outline, size: 16),
-                    label: Text(strings.get('markDelivered')),
-                  ),
-              ],
+          if (ready)
+            TextButton.icon(
+              onPressed: onDelivered,
+              icon: const Icon(Icons.check_circle_outline, size: 16),
+              label: Text(strings.get('markDelivered')),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
-}
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.title, required this.child, this.trailing});
-  final String title;
-  final Widget child;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    elevation: 0,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-      side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-              ),
-              ?trailing,
-            ],
-          ),
-          const SizedBox(height: 8),
-          child,
-        ],
-      ),
-    ),
-  );
 }

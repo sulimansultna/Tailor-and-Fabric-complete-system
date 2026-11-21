@@ -12,13 +12,20 @@ import '../../dialogs/order_dialog.dart';
 import '../../dialogs/payment_dialog.dart';
 import '../../l10n/app_localizations_extensions.dart';
 import '../customers/customer_profile_screen.dart';
+import '../settings/shop_profile_screen.dart';
+import '../suppliers/fabric_purchase_screen.dart';
 import 'dashboard_data_provider.dart';
 import 'dashboard_strings.dart';
 import 'widgets/customer_search_section.dart';
+import 'widgets/dashboard_activity.dart';
+import 'widgets/dashboard_charts.dart';
 import 'widgets/dashboard_header.dart';
+import 'widgets/dashboard_panel.dart';
 import 'widgets/dashboard_summary_card.dart';
 import 'widgets/orders_attention_section.dart';
+import 'widgets/premium_illustration.dart';
 import 'widgets/quick_actions_section.dart';
+import 'widgets/shop_identity_card.dart';
 import 'widgets/upcoming_deliveries_section.dart';
 import 'widgets/sell_fabric_dialog.dart';
 
@@ -37,6 +44,8 @@ class DashboardScreen extends StatefulWidget {
     required this.shopName,
     required this.onSearch,
     required this.onNavigate,
+    this.onShopNameChanged,
+    this.onLogoChanged,
     this.deliveryOnly = false,
   });
 
@@ -44,6 +53,8 @@ class DashboardScreen extends StatefulWidget {
   final String shopName;
   final ValueChanged<String> onSearch;
   final void Function(int page, {String? filter}) onNavigate;
+  final ValueChanged<String>? onShopNameChanged;
+  final ValueChanged<String?>? onLogoChanged;
   final bool deliveryOnly;
 
   @override
@@ -52,19 +63,75 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   late Future<DashboardData> future;
-  late Future<Map<String, Object?>> profileFuture;
   late Future<DashboardStrings> stringsFuture;
   bool actionBusy = false;
   final _searchFocus = FocusNode();
+  String period = 'month';
+  Future<void> _gate = Future<void>.value();
+  Map<String, Object?>? _profile;
+  DashboardInsight? _insight;
+  bool _insightLoading = true;
 
   @override
   void dispose() { _searchFocus.dispose(); super.dispose(); }
 
+  Future<T> _serialized<T>(Future<T> Function() task) {
+    final result = _gate.then((_) => task());
+    _gate = result.then((_) {}, onError: (_, _) {});
+    return result;
+  }
+
+  ({DateTime from, DateTime through}) _periodRange() {
+    final today = CalendarService.shopToday();
+    final day = DateTime(today.year, today.month, today.day);
+    final calendar = CalendarService.activeCalendar;
+    return switch (period) {
+      'today' => (from: day, through: day),
+      'year' => (
+        from: CalendarService.startOfYear(day, calendar: calendar),
+        through: day,
+      ),
+      _ => (
+        from: CalendarService.startOfMonth(day, calendar: calendar),
+        through: day,
+      ),
+    };
+  }
+
+  Future<DashboardData> _boot() => _serialized(() async {
+    final provider = DashboardDataProvider(widget.database);
+    final data = await provider.load();
+    final profile = await widget.database.settings();
+    final range = _periodRange();
+    final insight = await provider.loadInsight(
+      from: range.from,
+      through: range.through,
+    );
+    _profile = profile;
+    _insight = insight;
+    _insightLoading = false;
+    return data;
+  });
+
+  Future<void> _loadInsight() async {
+    final range = _periodRange();
+    final insight = await _serialized(
+      () => DashboardDataProvider(widget.database).loadInsight(
+        from: range.from,
+        through: range.through,
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      _insight = insight;
+      _insightLoading = false;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
-    future = DashboardDataProvider(widget.database).load();
-    profileFuture = widget.database.settings();
+    future = _boot();
   }
 
   @override
@@ -74,12 +141,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _reload() async {
-    final next = DashboardDataProvider(widget.database).load();
+    final next = _boot();
     setState(() {
       future = next;
-      profileFuture = widget.database.settings();
+      _insightLoading = true;
     });
     await next;
+    if (mounted) setState(() {});
+  }
+
+  void _selectPeriod(String value) {
+    if (period == value) return;
+    setState(() {
+      period = value;
+      _insightLoading = true;
+    });
+    _loadInsight();
+  }
+
+  Future<void> _editProfile() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ShopProfileScreen(
+          database: widget.database,
+          onShopNameChanged: widget.onShopNameChanged,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    final settings = await widget.database.settings();
+    if (!mounted) return;
+    setState(() => _profile = settings);
+    widget.onLogoChanged?.call(settings['shop_logo_path'] as String?);
+  }
+
+  Future<void> _purchaseFabric() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => FabricPurchaseScreen(database: widget.database),
+      ),
+    );
+    if (mounted) await _reload();
   }
 
   Future<void> _runAction(Future<void> Function() action) async {
@@ -219,96 +321,167 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: EdgeInsets.all(compact ? 12 : 18),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _dashboardHeader(strings),
-                        const SizedBox(height: 8),
-                        _shopProfileCard(),
-                        SizedBox(height: gap),
-                        CustomerSearchSection(
-                          searchFocusNode: _searchFocus,
-                          database: widget.database,
-                          strings: strings,
-                          onSelect: _selectCustomer,
-                          onAddCustomer: _addCustomer,
-                          onQueryChanged: widget.onSearch,
-                          onViewAll: () {
-                            widget.onSearch('');
-                            widget.onNavigate(1);
-                          },
-                        ),
-                        SizedBox(height: gap),
-                        _summaryGrid(data, strings, columns, gap),
-                        SizedBox(height: gap),
-                        QuickActionsSection(
-                          strings: strings,
-                          onNewOrder: () => _runAction(_newOrder),
-                          onAddCustomer: () =>
-                              _runAction(() => _addCustomer('')),
-                          onReceivePayment: () =>
-                              _runAction(() => _receivePayment(null)),
-                          onSellFabric: () => _runAction(() async {
-                            await showSellFabricDialog(
-                              context,
-                              widget.database,
-                            );
-                            if (mounted) await _reload();
-                          }),
-                        ),
-                        SizedBox(height: gap),
-                        if (wide)
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: OrdersAttentionSection(
-                                  dueToday: data.dueToday,
-                                  overdue: data.overdue,
-                                  ready: data.ready,
-                                  strings: strings,
-                                  onViewAll: () => widget.onNavigate(2),
-                                  onOpenCustomer: _openOrder,
-                                  onReceivePayment: (order) =>
-                                      _receivePayment(order),
-                                  onMarkDelivered: _markDelivered,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _dashboardHeader(strings),
+                            const SizedBox(height: 8),
+                            _shopProfileCard(),
+                            SizedBox(height: gap),
+                            CustomerSearchSection(
+                              searchFocusNode: _searchFocus,
+                              database: widget.database,
+                              strings: strings,
+                              onSelect: _selectCustomer,
+                              onAddCustomer: _addCustomer,
+                              onOpenBill: _openOrder,
+                              onQueryChanged: widget.onSearch,
+                              onViewAll: () {
+                                widget.onSearch('');
+                                widget.onNavigate(1);
+                              },
+                            ),
+                            SizedBox(height: gap),
+                            _periodSelector(),
+                            SizedBox(height: gap),
+                            _summaryGrid(
+                              data,
+                              _insight,
+                              _insightLoading,
+                              columns,
+                              gap,
+                            ),
+                            SizedBox(height: gap),
+                            _secondaryMetrics(
+                              data,
+                              _insight,
+                              _insightLoading,
+                              gap,
+                            ),
+                            SizedBox(height: gap),
+                            QuickActionsSection(
+                              strings: strings,
+                              onNewOrder: () => _runAction(_newOrder),
+                              onFindCustomer: _searchFocus.requestFocus,
+                              onAddCustomer: () =>
+                                  _runAction(() => _addCustomer('')),
+                              onReceivePayment: () =>
+                                  _runAction(() => _receivePayment(null)),
+                              onPurchaseFabric: () =>
+                                  _runAction(_purchaseFabric),
+                              onSellFabric: () => _runAction(() async {
+                                await showSellFabricDialog(
+                                  context,
+                                  widget.database,
+                                );
+                                if (mounted) await _reload();
+                              }),
+                            ),
+                            SizedBox(height: gap),
+                            DashboardCharts(
+                              insight: _insight,
+                              loading: _insightLoading,
+                              onOpenReports: () => widget.onNavigate(7),
+                              onRetry: () {
+                                setState(() => _insightLoading = true);
+                                _loadInsight();
+                              },
+                            ),
+                            SizedBox(height: gap),
+                            if (wide)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: TodayDeliveriesSection(
+                                      rows: data.dueToday,
+                                      strings: strings,
+                                      onOpen: _openOrder,
+                                      onViewAll: () => widget.onNavigate(
+                                        2,
+                                        filter: 'dueToday',
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: UpcomingDeliveriesSection(
+                                      rows: data.upcoming,
+                                      now: CalendarService.shopToday(),
+                                      strings: strings,
+                                      onOpenCustomer: _openOrder,
+                                      onViewAll: () => widget.onNavigate(3),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else ...[
+                              TodayDeliveriesSection(
+                                rows: data.dueToday,
+                                strings: strings,
+                                onOpen: _openOrder,
+                                onViewAll: () => widget.onNavigate(
+                                  2,
+                                  filter: 'dueToday',
                                 ),
                               ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                flex: 2,
-                                child: UpcomingDeliveriesSection(
-                                  rows: data.upcoming,
-                                  now: CalendarService.shopToday(),
-                                  strings: strings,
-                                  onOpenCustomer: _openOrder,
-                                  onViewAll: () => widget.onNavigate(3),
-                                ),
+                              SizedBox(height: gap),
+                              UpcomingDeliveriesSection(
+                                rows: data.upcoming,
+                                now: CalendarService.shopToday(),
+                                strings: strings,
+                                onOpenCustomer: _openOrder,
+                                onViewAll: () => widget.onNavigate(3),
                               ),
                             ],
-                          )
-                        else ...[
-                          OrdersAttentionSection(
-                            dueToday: data.dueToday,
-                            overdue: data.overdue,
-                            ready: data.ready,
-                            strings: strings,
-                            onViewAll: () => widget.onNavigate(2),
-                            onOpenCustomer: _openOrder,
-                            onReceivePayment: (order) => _receivePayment(order),
-                            onMarkDelivered: _markDelivered,
-                          ),
-                          SizedBox(height: gap),
-                          UpcomingDeliveriesSection(
-                            rows: data.upcoming,
-                            now: CalendarService.shopToday(),
-                            strings: strings,
-                            onOpenCustomer: _openOrder,
-                            onViewAll: () => widget.onNavigate(3),
-                          ),
-                        ],
-                      ],
-                    ),
+                            SizedBox(height: gap),
+                            OrdersAttentionSection(
+                              dueToday: data.dueToday,
+                              overdue: data.overdue,
+                              ready: data.ready,
+                              strings: strings,
+                              onViewAll: () => widget.onNavigate(2),
+                              onOpenCustomer: _openOrder,
+                              onReceivePayment: (order) =>
+                                  _receivePayment(order),
+                              onMarkDelivered: _markDelivered,
+                            ),
+                            SizedBox(height: gap),
+                            if (wide)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: RecentOrdersSection(
+                                      rows: data.recentOrders,
+                                      strings: strings,
+                                      onOpen: _openOrder,
+                                      onViewAll: () => widget.onNavigate(2),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: LowStockSection(
+                                      rows: data.lowStock,
+                                      onOpenFabric: () => widget.onNavigate(4),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else ...[
+                              RecentOrdersSection(
+                                rows: data.recentOrders,
+                                strings: strings,
+                                onOpen: _openOrder,
+                                onViewAll: () => widget.onNavigate(2),
+                              ),
+                              SizedBox(height: gap),
+                              LowStockSection(
+                                rows: data.lowStock,
+                                onOpenFabric: () => widget.onNavigate(4),
+                              ),
+                            ],
+                          ],
+                        ),
                   ),
                 );
               },
@@ -319,62 +492,153 @@ class _DashboardScreenState extends State<DashboardScreen> {
     },
   ));
 
+  Widget _periodSelector() {
+    final l10n = context.l10n;
+    final options = [
+      ('today', l10n.dashPeriodToday),
+      ('month', l10n.dashPeriodMonth),
+      ('year', l10n.dashPeriodYear),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final option in options)
+              ChoiceChip(
+                label: Text(option.$2),
+                selected: period == option.$1,
+                onSelected: (_) => _selectPeriod(option.$1),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          l10n.dashPeriodScope,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color _accent(Color color) => Theme.of(context).brightness == Brightness.dark
+      ? Color.lerp(color, Colors.white, .18)!
+      : color;
+
+  String _money(int? value, String locale, {required String unavailable}) =>
+      value == null ? unavailable : formatMoney(value, locale: locale);
+
   Widget _summaryGrid(
     DashboardData data,
-    DashboardStrings strings,
+    DashboardInsight? insight,
+    bool insightLoading,
     int columns,
     double gap,
   ) {
+    final l10n = context.l10n;
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final colors = Theme.of(context).colorScheme;
+    final periodLabel = switch (period) {
+      'today' => l10n.dashPeriodToday,
+      'year' => l10n.dashPeriodYear,
+      _ => l10n.dashPeriodMonth,
+    };
+    final netValue = insightLoading
+        ? l10n.dashLoadingFigures
+        : insight == null || insight.failed
+        ? '—'
+        : _money(
+            insight.netProfit,
+            locale,
+            unavailable: l10n.dashProfitUnavailableShort,
+          );
+    final netColor = insight?.netProfit == null
+        ? dashboardToneColor(context, DashboardTone.warning)
+        : insight!.netProfit! < 0
+        ? dashboardToneColor(context, DashboardTone.due)
+        : null;
+    final customerDue = data.customerDebt;
+    final supplierDue = data.supplierDebt;
     final items = [
-      (
-        strings.get('newToday'),
-        '${data.metrics['today'] ?? 0}',
-        strings.get('ordersReceivedToday'),
-        Icons.receipt_long_outlined,
-        colors.secondary,
-        'newToday',
+      _CardSpec(
+        key: const ValueKey('dashboard-card-today'),
+        label: l10n.dashTodayOrders,
+        value: '${data.metrics['today'] ?? 0}',
+        description: l10n.dashTodayOrdersHint,
+        mark: PremiumMark.orders,
+        accent: _accent(const Color(0xff2563eb)),
+        badge: l10n.dashBadgeToday,
+        onTap: () => widget.onNavigate(2, filter: 'newToday'),
       ),
-      (
-        strings.get('dueToday'),
-        '${data.metrics['due'] ?? 0}',
-        strings.get('toHandOverToday'),
-        Icons.event_available_outlined,
-        colors.tertiary,
-        'dueToday',
+      _CardSpec(
+        key: const ValueKey('dashboard-card-ready'),
+        label: l10n.dashReadyCollection,
+        value: '${data.metrics['ready'] ?? 0}',
+        description: l10n.dashReadyCollectionHint,
+        mark: PremiumMark.ready,
+        accent: _accent(const Color(0xff15803d)),
+        badge: l10n.dashBadgeToday,
+        onTap: () => widget.onNavigate(2, filter: 'ready'),
       ),
-      (
-        strings.get('overdue'),
-        '${data.metrics['overdue'] ?? 0}',
-        strings.get('pastDueDate'),
-        Icons.warning_amber_rounded,
-        colors.error,
-        'overdue',
+      _CardSpec(
+        key: const ValueKey('dashboard-card-customer-due'),
+        label: l10n.dashCustomerDue,
+        value: formatMoney(customerDue, locale: locale),
+        description: customerDue == 0
+            ? l10n.dashNothingDue
+            : l10n.dashCustomerDueHint,
+        mark: PremiumMark.customers,
+        accent: _accent(const Color(0xffea580c)),
+        badge: l10n.dashBadgeBalance,
+        valueColor: customerDue == 0
+            ? dashboardToneColor(context, DashboardTone.good)
+            : dashboardToneColor(context, DashboardTone.due),
+        onTap: () => widget.onNavigate(1, filter: 'owing'),
       ),
-      (
-        strings.get('ready'),
-        '${data.metrics['ready'] ?? 0}',
-        strings.get('readyForPickup'),
-        Icons.check_circle_outline,
-        colors.secondary,
-        'ready',
+      _CardSpec(
+        key: const ValueKey('dashboard-card-supplier-due'),
+        label: l10n.dashSupplierDue,
+        value: formatMoney(supplierDue, locale: locale),
+        description: supplierDue == 0
+            ? l10n.dashNothingDue
+            : l10n.dashSupplierDueHint,
+        mark: PremiumMark.suppliers,
+        accent: _accent(const Color(0xffdc2626)),
+        badge: l10n.dashBadgeBalance,
+        valueColor: supplierDue == 0
+            ? dashboardToneColor(context, DashboardTone.good)
+            : dashboardToneColor(context, DashboardTone.due),
+        onTap: () => widget.onNavigate(5),
       ),
-      (
-        strings.get('paymentsToday'),
-        formatMoney(data.metrics['paidToday'] ?? 0, locale: locale),
-        strings.get('paymentsRecordedToday'),
-        Icons.payments_outlined,
-        colors.primary,
-        'payments',
+      _CardSpec(
+        key: const ValueKey('dashboard-card-fabric'),
+        label: l10n.dashFabricAvailable,
+        value: '${dashboardMeters(data.availableMeters)} ${l10n.fabricFormMeter}',
+        description: l10n.dashFabricAvailableHint,
+        mark: PremiumMark.fabric,
+        accent: _accent(const Color(0xff0f766e)),
+        badge: l10n.dashBadgeBalance,
+        onTap: () => widget.onNavigate(4),
       ),
-      (
-        strings.get('customerBalance'),
-        formatMoney(data.metrics['balance'] ?? 0, locale: locale),
-        strings.get('currentLedgerBalance'),
-        Icons.account_balance_wallet_outlined,
-        colors.onSurfaceVariant,
-        'customers',
+      _CardSpec(
+        key: const ValueKey('dashboard-card-profit'),
+        label: l10n.dashNetProfit,
+        value: netValue,
+        description: insightLoading
+            ? l10n.dashLoadingFigures
+            : insight == null || insight.failed
+            ? l10n.dashInsightFailed
+            : insight.netProfit == null
+            ? l10n.dashProfitUnavailableHint
+            : '$periodLabel · ${l10n.dashNetProfitHint}',
+        mark: PremiumMark.profit,
+        accent: _accent(const Color(0xff7c3aed)),
+        badge: l10n.dashBadgePeriod,
+        valueColor: netColor,
+        onTap: () => widget.onNavigate(7),
       ),
     ];
     return LayoutBuilder(
@@ -389,34 +653,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               SizedBox(
                 width: itemWidth,
                 child: DashboardSummaryCard(
-                  label: item.$1,
-                  value: item.$2,
-                  description: item.$3,
-                  icon: item.$4,
-                  accent: item.$5,
-                  direction:
-                      item.$6 == 'newToday' ||
-                          item.$6 == 'dueToday' ||
-                          item.$6 == 'overdue' ||
-                          item.$6 == 'ready'
-                      ? TextDirection.ltr
-                      : TextDirection.ltr,
-                  onTap: () {
-                    switch (item.$6) {
-                      case 'newToday':
-                        widget.onNavigate(2, filter: 'newToday');
-                      case 'dueToday':
-                        widget.onNavigate(2, filter: 'dueToday');
-                      case 'overdue':
-                        widget.onNavigate(2, filter: 'overdue');
-                      case 'ready':
-                        widget.onNavigate(2, filter: 'ready');
-                      case 'customers':
-                        widget.onNavigate(1, filter: 'owing');
-                      case 'payments':
-                        widget.onNavigate(8);
-                    }
-                  },
+                  key: item.key,
+                  label: item.label,
+                  value: item.value,
+                  description: item.description,
+                  mark: item.mark,
+                  accent: item.accent,
+                  badge: item.badge,
+                  valueColor: item.valueColor,
+                  onTap: item.onTap,
                 ),
               ),
           ],
@@ -425,123 +670,188 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _shopProfileCard() => FutureBuilder<Map<String, Object?>>(
-    future: profileFuture,
-    builder: (context, snapshot) {
-      final profile = snapshot.data;
-      if (profile == null) return const SizedBox.shrink();
-      final name = (profile['shop_name'] as String? ?? widget.shopName).trim();
-      final owner = (profile['owner_name'] as String? ?? '').trim();
-      final phone = (profile['phone'] as String? ?? '').trim();
-      final address = (profile['address'] as String? ?? '').trim();
-      final contacts = [
-        if (owner.isNotEmpty) _profileValue(Icons.person_outline, owner),
-        if (phone.isNotEmpty) _profileValue(Icons.phone_outlined, phone),
-        if (address.isNotEmpty)
-          _profileValue(Icons.location_on_outlined, address),
-      ];
-      return Card(
-        clipBehavior: Clip.antiAlias,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: AlignmentDirectional.centerStart,
-              end: AlignmentDirectional.centerEnd,
-              colors: [
-                Theme.of(context).colorScheme.surface,
-                Theme.of(context).colorScheme.primary.withValues(alpha: .06),
-              ],
-            ),
+  Widget _secondaryMetrics(
+    DashboardData data,
+    DashboardInsight? insight,
+    bool insightLoading,
+    double gap,
+  ) {
+    final l10n = context.l10n;
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    final periodLabel = switch (period) {
+      'today' => l10n.dashPeriodToday,
+      'year' => l10n.dashPeriodYear,
+      _ => l10n.dashPeriodMonth,
+    };
+    String periodMoney(int? value) => insightLoading
+        ? l10n.dashLoadingFigures
+        : insight == null || insight.failed
+        ? '—'
+        : _money(value, locale, unavailable: l10n.dashProfitUnavailableShort);
+    final items = [
+      (
+        l10n.dueToday,
+        '${data.metrics['due'] ?? 0}',
+        l10n.toHandOverToday,
+        PremiumMark.delivery,
+        const Color(0xffea580c),
+        () => widget.onNavigate(2, filter: 'dueToday'),
+        null as Color?,
+      ),
+      (
+        l10n.overdue,
+        '${data.metrics['overdue'] ?? 0}',
+        l10n.pastDueDate,
+        PremiumMark.delivery,
+        const Color(0xffdc2626),
+        () => widget.onNavigate(2, filter: 'overdue'),
+        (data.metrics['overdue'] ?? 0) > 0
+            ? dashboardToneColor(context, DashboardTone.due)
+            : null,
+      ),
+      (
+        l10n.paymentsToday,
+        formatMoney(data.metrics['paidToday'] ?? 0, locale: locale),
+        l10n.dashCashCollected,
+        PremiumMark.payments,
+        const Color(0xff15803d),
+        () => widget.onNavigate(8),
+        null,
+      ),
+      (
+        l10n.customerBalance,
+        formatMoney(data.metrics['balance'] ?? 0, locale: locale),
+        l10n.currentLedgerBalance,
+        PremiumMark.customers,
+        const Color(0xff0f766e),
+        () => widget.onNavigate(1),
+        null,
+      ),
+      (
+        l10n.reportMetricSales,
+        periodMoney(insight?.sales),
+        periodLabel,
+        PremiumMark.reports,
+        const Color(0xff2563eb),
+        () => widget.onNavigate(7),
+        null,
+      ),
+      (
+        l10n.reportNetStitchingRevenue,
+        periodMoney(insight?.stitchingRevenue),
+        periodLabel,
+        PremiumMark.stitching,
+        const Color(0xff7c3aed),
+        () => widget.onNavigate(7),
+        null,
+      ),
+      (
+        l10n.reportMetricGrossProfit,
+        periodMoney(insight?.grossProfit),
+        periodLabel,
+        PremiumMark.profit,
+        const Color(0xff0f766e),
+        () => widget.onNavigate(7),
+        insight != null && !insight.failed && insight.grossProfit == null
+            ? dashboardToneColor(context, DashboardTone.warning)
+            : null,
+      ),
+      (
+        l10n.reportMetricExpenses,
+        periodMoney(insight?.expenses),
+        periodLabel,
+        PremiumMark.expenses,
+        const Color(0xffea580c),
+        () => widget.onNavigate(6),
+        null,
+      ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.dashMoreFigures,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
           ),
-          padding: const EdgeInsets.all(12),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final heading = Text(
-                name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontWeight: FontWeight.w800,
-                ),
-              );
-              final editButton = IconButton.filledTonal(
-                tooltip: context.l10n.settings,
-                onPressed: () => widget.onNavigate(9),
-                icon: const Icon(Icons.edit_outlined),
-              );
-
-              if (constraints.maxWidth < 620) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: heading),
-                        editButton,
-                      ],
-                    ),
-                    if (contacts.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Wrap(spacing: 12, runSpacing: 6, children: contacts),
-                    ],
-                  ],
-                );
-              }
-
-              return Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        heading,
-                        if (contacts.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Wrap(spacing: 12, runSpacing: 6, children: contacts),
-                        ],
-                      ],
+        ),
+        const SizedBox(height: 8),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final columns = width < 520
+                ? 1
+                : width < 900
+                ? 2
+                : 4;
+            final itemWidth = (width - gap * (columns - 1)) / columns;
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [
+                for (final item in items)
+                  SizedBox(
+                    width: itemWidth,
+                    child: DashboardMiniMetric(
+                      label: item.$1,
+                      value: item.$2,
+                      description: item.$3,
+                      mark: item.$4,
+                      accent: _accent(item.$5),
+                      onTap: item.$6,
+                      valueColor: item.$7,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  editButton,
-                ],
-              );
-            },
-          ),
+              ],
+            );
+          },
         ),
-      );
-    },
-  );
+      ],
+    );
+  }
 
-  Widget _dashboardHeader(DashboardStrings strings) =>
-      FutureBuilder<Map<String, Object?>>(
-        future: profileFuture,
-        builder: (context, snapshot) => DashboardHeader(
-          shopName: (snapshot.data?['shop_name'] as String? ?? widget.shopName)
-              .trim(),
-          logoPath: snapshot.data?['shop_logo_path'] as String?,
-          now: CalendarService.shopToday(),
-          strings: strings,
-          onNewOrder: () => _runAction(_newOrder),
-          onRefresh: _reload,
-        ),
-      );
+  Widget _shopProfileCard() {
+    final profile = _profile;
+    return ShopIdentityCard(
+      shopName: (profile?['shop_name'] as String? ?? widget.shopName).trim(),
+      owner: (profile?['owner_name'] as String? ?? '').trim(),
+      phone: (profile?['phone'] as String? ?? '').trim(),
+      address: (profile?['address'] as String? ?? '').trim(),
+      logoPath: profile?['shop_logo_path'] as String?,
+      onEdit: _editProfile,
+    );
+  }
 
-  Widget _profileValue(IconData icon, String value) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(
-        icon,
-        size: 17,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
-      const SizedBox(width: 7),
-      Flexible(
-        child: Text(value, maxLines: 2, overflow: TextOverflow.ellipsis),
-      ),
-    ],
+  Widget _dashboardHeader(DashboardStrings strings) => DashboardHeader(
+    now: CalendarService.shopToday(),
+    strings: strings,
+    onNewOrder: () => _runAction(_newOrder),
+    onRefresh: _reload,
   );
+}
+
+class _CardSpec {
+  const _CardSpec({
+    required this.key,
+    required this.label,
+    required this.value,
+    required this.description,
+    required this.mark,
+    required this.accent,
+    required this.badge,
+    required this.onTap,
+    this.valueColor,
+  });
+
+  final Key key;
+  final String label;
+  final String value;
+  final String description;
+  final PremiumMark mark;
+  final Color accent;
+  final String badge;
+  final VoidCallback onTap;
+  final Color? valueColor;
 }
 
 class _DashboardLoadError extends StatelessWidget {
@@ -627,7 +937,7 @@ class _CustomerPickerDialogState extends State<_CustomerPickerDialog> {
   Widget build(BuildContext context) => AlertDialog(
     title: Text(context.l10n.chooseCustomer),
     content: SizedBox(
-      width: 480,
+      width: fitContentWidth(context, 480),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

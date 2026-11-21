@@ -5,6 +5,7 @@ import '../data/shop_database.dart';
 import '../l10n/app_localizations_extensions.dart';
 import '../models/garment.dart';
 import 'measurement_dialog.dart';
+import '../widgets/responsive_layout.dart';
 
 Future<void> showMeasurementHistoryDialog(
   BuildContext context,
@@ -21,7 +22,7 @@ Future<void> showMeasurementHistoryDialog(
     builder: (ctx) => AlertDialog(
       title: Text(l10n.measurementProfiles(localizedGarment(context, garment))),
       content: SizedBox(
-        width: 440,
+        width: fitContentWidth(ctx, 440),
         child: rows.isEmpty
             ? Text(l10n.noProfiles)
             : ListView(

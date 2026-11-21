@@ -3,10 +3,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 class ShopLogo extends StatelessWidget {
-  const ShopLogo({super.key, required this.path, this.size = 56});
+  const ShopLogo({
+    super.key,
+    required this.path,
+    this.size = 56,
+    this.radius = 12,
+  });
 
   final String? path;
   final double size;
+  final double radius;
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +27,7 @@ class ShopLogo extends StatelessWidget {
             errorBuilder: (_, _, _) => _placeholder(context),
           );
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(radius),
       child: image ?? _placeholder(context),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/shop_database.dart';
 import '../l10n/app_localizations_extensions.dart';
+import '../widgets/responsive_layout.dart';
 
 Future<bool> showEditOrderDialog(
   BuildContext context,
@@ -23,7 +24,7 @@ Future<bool> showEditOrderDialog(
         builder: (dialogContext, setState) => AlertDialog(
           title: Text(dialogContext.l10n.editOrder),
           content: SizedBox(
-            width: 440,
+            width: fitContentWidth(dialogContext, 440),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,

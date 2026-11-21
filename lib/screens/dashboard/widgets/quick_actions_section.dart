@@ -1,81 +1,161 @@
 import 'package:flutter/material.dart';
-import '../../../commands/app_commands.dart';
 
+import '../../../commands/app_commands.dart';
+import '../../../l10n/app_localizations_extensions.dart';
 import '../dashboard_strings.dart';
+import 'dashboard_panel.dart';
+import 'premium_illustration.dart';
 
 class QuickActionsSection extends StatelessWidget {
   const QuickActionsSection({
     super.key,
     required this.strings,
     required this.onNewOrder,
-    required this.onAddCustomer,
+    required this.onFindCustomer,
     required this.onReceivePayment,
+    required this.onPurchaseFabric,
     required this.onSellFabric,
+    required this.onAddCustomer,
   });
 
   final DashboardStrings strings;
   final VoidCallback onNewOrder;
-  final VoidCallback onAddCustomer;
+  final VoidCallback onFindCustomer;
   final VoidCallback onReceivePayment;
+  final VoidCallback onPurchaseFabric;
   final VoidCallback onSellFabric;
+  final VoidCallback onAddCustomer;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final actions = [
       (
-        strings.get('addCustomer'),
-        Icons.person_add_alt_1_outlined,
-        onAddCustomer,
+        l10n.newOrder,
+        PremiumMark.orders,
+        const Color(0xff2563eb),
+        onNewOrder,
+        true,
+      ),
+      (
+        l10n.dashFindCustomer,
+        PremiumMark.customers,
+        const Color(0xff0f766e),
+        onFindCustomer,
+        false,
       ),
       (
         strings.get('receivePayment'),
-        Icons.payments_outlined,
+        PremiumMark.payments,
+        const Color(0xff15803d),
         onReceivePayment,
+        false,
       ),
-      (strings.get('sellFabric'), Icons.inventory_2_outlined, onSellFabric),
+      (
+        l10n.dashPurchaseFabric,
+        PremiumMark.fabric,
+        const Color(0xff7c3aed),
+        onPurchaseFabric,
+        false,
+      ),
+      (
+        strings.get('sellFabric'),
+        PremiumMark.fabric,
+        const Color(0xffea580c),
+        onSellFabric,
+        false,
+      ),
+      (
+        strings.get('addCustomer'),
+        PremiumMark.customers,
+        const Color(0xff0f766e),
+        onAddCustomer,
+        false,
+      ),
     ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          strings.get('quickActions'),
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: [
-            CommandButton(register: false, aliases: const ['action.new'], id: 'orders.add', child: FilledButton.icon(
-              onPressed: onNewOrder,
-              icon: const Icon(Icons.add_shopping_cart_outlined),
-              label: Text(strings.get('newOrder')),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(0, 40),
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-              ),
-            )),
-            for (final action in actions)
-              OutlinedButton.icon(
-                onPressed: action.$3,
-                icon: Icon(action.$2),
-                label: Text(action.$1),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 40),
-                  foregroundColor: Theme.of(context).colorScheme.onSurface,
-                  side: BorderSide(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+    return DashboardPanel(
+      title: strings.get('quickActions'),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth < 560
+              ? 1
+              : constraints.maxWidth < 900
+              ? 2
+              : 3;
+          final width =
+              (constraints.maxWidth - (columns - 1) * 8) / columns;
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final action in actions)
+                SizedBox(
+                  width: width,
+                  child: action.$5
+                      ? CommandButton(
+                          register: false,
+                          aliases: const ['action.new'],
+                          id: 'orders.add',
+                          child: FilledButton.icon(
+                            onPressed: action.$4,
+                            icon: PremiumMarkIcon(
+                              mark: action.$2,
+                              accent: Colors.white,
+                              size: 28,
+                            ),
+                            label: Text(
+                              action.$1,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(0, 46),
+                              backgroundColor: action.$3,
+                              alignment: AlignmentDirectional.centerStart,
+                            ),
+                          ),
+                        )
+                      : _ActionButton(
+                          label: action.$1,
+                          mark: action.$2,
+                          accent: action.$3,
+                          onPressed: action.$4,
+                        ),
                 ),
-              ),
-          ],
-        ),
-      ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    required this.label,
+    required this.mark,
+    required this.accent,
+    required this.onPressed,
+  });
+
+  final String label;
+  final PremiumMark mark;
+  final Color accent;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: PremiumMarkIcon(mark: mark, accent: accent, size: 28),
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 46),
+        foregroundColor: scheme.onSurface,
+        alignment: AlignmentDirectional.centerStart,
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
     );
   }
 }

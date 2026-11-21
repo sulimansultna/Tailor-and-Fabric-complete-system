@@ -352,12 +352,15 @@ void main() {
           await tester.pumpAndSettle();
         }
         for (final (size, dpi, scale) in const [
+          (Size(800, 600), 1.0, 1.0),
+          (Size(1024, 600), 1.0, 1.0),
           (Size(1280, 720), 1.0, 1.0),
           (Size(1366, 768), 1.0, 1.0),
           (Size(1536, 864), 1.0, 1.0),
           (Size(1920, 1080), 1.0, 1.0),
           (Size(1280, 720), 1.25, 1.0),
           (Size(1366, 768), 1.5, 1.0),
+          (Size(1920, 1080), 2.0, 1.0),
           (Size(1280, 720), 1.5, 1.25),
         ]) {
           tester.view.physicalSize = size;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../commands/app_commands.dart';
 import '../../dialogs/measurement_dialog.dart';
 import '../../dialogs/measurement_history_dialog.dart';
@@ -25,6 +26,7 @@ import '../../widgets/shop_logo.dart';
 import '../../reports/report_service.dart';
 import '../../auth/auth_controller.dart';
 import '../reports/reports_screen.dart';
+import 'widgets/navigation_asset_icon.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -108,7 +110,12 @@ class _MainShellState extends State<MainShell> {
 
   Future<void> _commandNavigate(int value, {String? filter}) async {
     final registry = AppCommandRegistry.maybeOf(context);
-    if (dataOperationBusy || registry == null || !await registry.allowNavigation() || !mounted) return;
+    if (dataOperationBusy ||
+        registry == null ||
+        !await registry.allowNavigation() ||
+        !mounted) {
+      return;
+    }
     final shellRoute = ModalRoute.of(context);
     Navigator.of(context).popUntil((route) => route == shellRoute);
     _setPage(value, filter: filter);
@@ -124,65 +131,209 @@ class _MainShellState extends State<MainShell> {
   Future<void> _customerLedger() async {
     final customer = await _commandCustomer();
     if (!mounted || customer == null) return;
-    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => CustomerProfileScreen(
-      database: widget.database, customer: customer, initialTabIndex: 1)));
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CustomerProfileScreen(
+          database: widget.database,
+          customer: customer,
+          initialTabIndex: 1,
+        ),
+      ),
+    );
   }
 
   Future<void> _measurements({bool history = false}) async {
     final customer = await _commandCustomer();
     if (!mounted || customer == null) return;
     final choice = await pickCommandRecord(context, 'garment', [
-      for (final garment in Garment.values) {'id': garment.index, 'name': localizedGarment(context, garment)},
+      for (final garment in Garment.values)
+        {'id': garment.index, 'name': localizedGarment(context, garment)},
     ], title: context.l10n.garment);
     if (!mounted || choice == null) return;
     final garment = Garment.values[choice['id'] as int];
     if (history) {
-      await showMeasurementHistoryDialog(context, widget.database, customer, garment);
+      await showMeasurementHistoryDialog(
+        context,
+        widget.database,
+        customer,
+        garment,
+      );
     } else {
-      final profiles = await widget.database.measurements(customer['id'] as int, garment.key);
+      final profiles = await widget.database.measurements(
+        customer['id'] as int,
+        garment.key,
+      );
       if (!mounted) return;
-      await showMeasurementDialog(context, widget.database, customer, garment,
-        existing: profiles.where((profile) => profile['active'] == 1).firstOrNull, onSaved: () async {});
+      await showMeasurementDialog(
+        context,
+        widget.database,
+        customer,
+        garment,
+        existing: profiles
+            .where((profile) => profile['active'] == 1)
+            .firstOrNull,
+        onSaved: () async {},
+      );
     }
   }
 
   List<AppCommand> _shellCommands() {
     final registry = AppCommandRegistry.maybeOf(context)!;
-    String? busy() => dataOperationBusy ? localizedCommandText(context,
-      'Wait for the backup or restore operation to finish.', 'بیک اپ یا بیا رغولو ته انتظار وکړئ.', 'منتظر پایان پشتیبان‌گیری یا بازیابی بمانید.') : null;
-    final navigation = <String, int>{'nav.dashboard':0, 'nav.customers':1, 'nav.orders':2,
-      'nav.delivery':3, 'nav.fabric':4, 'nav.suppliers':5, 'nav.payments':8,
-      'nav.workers':10, 'nav.reports':7, 'nav.expenses':6, 'nav.settings':9};
+    String? busy() => dataOperationBusy
+        ? localizedCommandText(
+            context,
+            'Wait for the backup or restore operation to finish.',
+            'بیک اپ یا بیا رغولو ته انتظار وکړئ.',
+            'منتظر پایان پشتیبان‌گیری یا بازیابی بمانید.',
+          )
+        : null;
+    final navigation = <String, int>{
+      'nav.dashboard': 0,
+      'nav.customers': 1,
+      'nav.orders': 2,
+      'nav.delivery': 3,
+      'nav.fabric': 4,
+      'nav.suppliers': 5,
+      'nav.payments': 8,
+      'nav.workers': 10,
+      'nav.reports': 7,
+      'nav.expenses': 6,
+      'nav.settings': 9,
+    };
     final features = <int, List<String>>{
-      1:['customers.add','customers.edit','customers.remove','customers.profile','customers.restore','customers.archive'],
-      2:['orders.add','orders.edit','orders.drafts','orders.print','orders.printBoth','orders.measurementPrint','orders.history','orders.refund',
-        'order.deliver','order.archive','order.cancel','order.return','order.restore'],
-      4:['fabric.add','fabric.edit','fabric.remove','fabric.sale','fabric.stockIn','fabric.adjust','fabric.archive','fabric.details'],
-      5:['suppliers.add','suppliers.edit','suppliers.remove','suppliers.archive','suppliers.payment','purchases.drafts'],
-      8:['payments.add','payments.details','payments.print','payments.reverse'],
-      10:['workers.add','workers.edit','workers.profile','workers.salary'],
-      6:['expenses.add','expenses.reverse','expenses.categories','expenses.templates','expenses.csv','expenses.print'],
-      7:['reports.generate','reports.range','reports.pdf','reports.csv','reports.print','reports.overview','reports.stitching','reports.fabric'],
-      9:['settings.language','settings.calendar','settings.theme','settings.printing','settings.profile','settings.backup','settings.restore','settings.signOut'],
+      1: [
+        'customers.add',
+        'customers.edit',
+        'customers.remove',
+        'customers.profile',
+        'customers.restore',
+        'customers.archive',
+      ],
+      2: [
+        'orders.add',
+        'orders.edit',
+        'orders.drafts',
+        'orders.print',
+        'orders.printBoth',
+        'orders.measurementPrint',
+        'orders.history',
+        'orders.refund',
+        'order.deliver',
+        'order.archive',
+        'order.cancel',
+        'order.return',
+        'order.restore',
+      ],
+      4: [
+        'fabric.add',
+        'fabric.edit',
+        'fabric.remove',
+        'fabric.sale',
+        'fabric.stockIn',
+        'fabric.adjust',
+        'fabric.archive',
+        'fabric.details',
+      ],
+      5: [
+        'suppliers.add',
+        'suppliers.edit',
+        'suppliers.remove',
+        'suppliers.archive',
+        'suppliers.payment',
+        'purchases.drafts',
+      ],
+      8: [
+        'payments.add',
+        'payments.details',
+        'payments.print',
+        'payments.reverse',
+      ],
+      10: ['workers.add', 'workers.edit', 'workers.profile', 'workers.salary'],
+      6: [
+        'expenses.add',
+        'expenses.reverse',
+        'expenses.categories',
+        'expenses.templates',
+        'expenses.csv',
+        'expenses.print',
+      ],
+      7: [
+        'reports.generate',
+        'reports.range',
+        'reports.pdf',
+        'reports.csv',
+        'reports.print',
+        'reports.overview',
+        'reports.stitching',
+        'reports.fabric',
+      ],
+      9: [
+        'settings.language',
+        'settings.calendar',
+        'settings.theme',
+        'settings.printing',
+        'settings.profile',
+        'settings.backup',
+        'settings.restore',
+        'settings.signOut',
+      ],
     };
     return [
-      for (final entry in navigation.entries) AppCommand(entry.key, () => _commandNavigate(entry.value), disabledReason: busy),
+      for (final entry in navigation.entries)
+        AppCommand(
+          entry.key,
+          () => _commandNavigate(entry.value),
+          disabledReason: busy,
+        ),
       AppCommand('nav.purchases', () async {
         if (!await registry.allowNavigation() || !mounted) return;
         final shellRoute = ModalRoute.of(context);
         Navigator.of(context).popUntil((route) => route == shellRoute);
-        await Navigator.of(context).push(MaterialPageRoute<String>(builder: (_) => FabricPurchaseScreen(database: widget.database)));
+        await Navigator.of(context).push(
+          MaterialPageRoute<String>(
+            builder: (_) => FabricPurchaseScreen(database: widget.database),
+          ),
+        );
       }, disabledReason: busy),
       AppCommand('nav.customerLedger', _customerLedger, disabledReason: busy),
-      AppCommand('nav.supplierLedger', () => registry.forward(() => _commandNavigate(5), 'nav.supplierLedger'), disabledReason: busy),
-      AppCommand('nav.measurements', () => _measurements(), disabledReason: busy),
-      AppCommand('measurements.add', () => _measurements(), disabledReason: busy),
-      AppCommand('measurements.history', () => _measurements(history: true), disabledReason: busy),
-      AppCommand('nav.history', () => registry.forward(() => _commandNavigate(2), 'nav.history'), disabledReason: busy),
-      AppCommand('nav.backup', () => registry.forward(() => _commandNavigate(9), 'nav.backup'), disabledReason: busy),
+      AppCommand(
+        'nav.supplierLedger',
+        () => registry.forward(() => _commandNavigate(5), 'nav.supplierLedger'),
+        disabledReason: busy,
+      ),
+      AppCommand(
+        'nav.measurements',
+        () => _measurements(),
+        disabledReason: busy,
+      ),
+      AppCommand(
+        'measurements.add',
+        () => _measurements(),
+        disabledReason: busy,
+      ),
+      AppCommand(
+        'measurements.history',
+        () => _measurements(history: true),
+        disabledReason: busy,
+      ),
+      AppCommand(
+        'nav.history',
+        () => registry.forward(() => _commandNavigate(2), 'nav.history'),
+        disabledReason: busy,
+      ),
+      AppCommand(
+        'nav.backup',
+        () => registry.forward(() => _commandNavigate(9), 'nav.backup'),
+        disabledReason: busy,
+      ),
       for (final section in features.entries)
         for (final feature in section.value)
-          AppCommand('go.$feature', () => registry.forward(() => _commandNavigate(section.key), feature), disabledReason: busy),
+          AppCommand(
+            'go.$feature',
+            () =>
+                registry.forward(() => _commandNavigate(section.key), feature),
+            disabledReason: busy,
+          ),
     ];
   }
 
@@ -198,10 +349,16 @@ class _MainShellState extends State<MainShell> {
           children: [
             for (var index = 4; index < items.length; index++)
               ListTile(
-                leading: Icon(items[index].$2),
+                leading: NavigationAssetIcon(
+                  destinationIndex: index,
+                  fallbackIcon: items[index].$2,
+                ),
                 title: Text(items[index].$1),
                 selected: page == index,
-                trailing: Text(_navigationShortcut(index), textDirection: TextDirection.ltr),
+                trailing: Text(
+                  _navigationShortcut(index),
+                  textDirection: TextDirection.ltr,
+                ),
                 onTap: () => Navigator.pop(context, index),
               ),
           ],
@@ -243,7 +400,7 @@ class _MainShellState extends State<MainShell> {
               minWidth: 72,
               minExtendedWidth: 240,
               scrollable: true,
-                  selectedIndex: page == 10 ? 6 : page,
+              selectedIndex: page == 10 ? 6 : page,
               onDestinationSelected: dataOperationBusy ? null : _navigate,
               leading: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -283,11 +440,21 @@ class _MainShellState extends State<MainShell> {
                       ),
               ),
               destinations: [
-                for (final item in items)
+                for (var index = 0; index < items.length; index++)
                   NavigationRailDestination(
-                    icon: Icon(item.$2),
-                    selectedIcon: Icon(item.$2),
-                    label: Tooltip(message: '${item.$1} · ${_navigationShortcut(items.indexOf(item))}', child: Text(item.$1)),
+                    icon: NavigationAssetIcon(
+                      destinationIndex: index,
+                      fallbackIcon: items[index].$2,
+                    ),
+                    selectedIcon: NavigationAssetIcon(
+                      destinationIndex: index,
+                      fallbackIcon: items[index].$2,
+                    ),
+                    label: Tooltip(
+                      message:
+                          '${items[index].$1} · ${_navigationShortcut(index)}',
+                      child: Text(items[index].$1),
+                    ),
                   ),
               ],
             ),
@@ -299,60 +466,88 @@ class _MainShellState extends State<MainShell> {
           ),
         ],
       );
-      return CommandScope(global: true, priority: 0,
-        commands: AppCommandRegistry.maybeOf(context) == null ? const [] : _shellCommands(),
+      return CommandScope(
+        global: true,
+        priority: 0,
+        commands: AppCommandRegistry.maybeOf(context) == null
+            ? const []
+            : _shellCommands(),
         child: Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: Stack(
-          children: [
-            Positioned.fill(child: shellBody),
-            if (dataOperationBusy) ...[
-              const ModalBarrier(dismissible: false, color: Colors.black26),
-              const Center(child: CircularProgressIndicator()),
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: Stack(
+            children: [
+              Positioned.fill(child: shellBody),
+              if (dataOperationBusy) ...[
+                const ModalBarrier(dismissible: false, color: Colors.black26),
+                const Center(child: CircularProgressIndicator()),
+              ],
             ],
-          ],
+          ),
+          bottomNavigationBar: compact
+              ? NavigationBar(
+                  selectedIndex: page <= 3 ? page : 4,
+                  onDestinationSelected: dataOperationBusy
+                      ? null
+                      : (index) {
+                          if (index == 4) {
+                            _showMore();
+                          } else {
+                            _navigate(index);
+                          }
+                        },
+                  destinations: [
+                    NavigationDestination(
+                      icon: NavigationAssetIcon(
+                        destinationIndex: 0,
+                        fallbackIcon: Icons.dashboard_outlined,
+                      ),
+                      label: l10n.home,
+                    ),
+                    NavigationDestination(
+                      icon: NavigationAssetIcon(
+                        destinationIndex: 1,
+                        fallbackIcon: Icons.people_outline,
+                      ),
+                      label: l10n.customers,
+                    ),
+                    NavigationDestination(
+                      icon: NavigationAssetIcon(
+                        destinationIndex: 2,
+                        fallbackIcon: Icons.receipt_long_outlined,
+                      ),
+                      label: l10n.orders,
+                    ),
+                    NavigationDestination(
+                      icon: NavigationAssetIcon(
+                        destinationIndex: 3,
+                        fallbackIcon: Icons.event_available_outlined,
+                      ),
+                      label: l10n.delivery,
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.more_horiz),
+                      label: l10n.more,
+                    ),
+                  ],
+                )
+              : null,
         ),
-        bottomNavigationBar: compact
-            ? NavigationBar(
-                selectedIndex: page <= 3 ? page : 4,
-                onDestinationSelected: dataOperationBusy
-                    ? null
-                    : (index) {
-                        if (index == 4) {
-                          _showMore();
-                        } else {
-                          _navigate(index);
-                        }
-                      },
-                destinations: [
-                  NavigationDestination(
-                    icon: Icon(Icons.dashboard_outlined),
-                    label: l10n.home,
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.people_outline),
-                    label: l10n.customers,
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.receipt_long_outlined),
-                    label: l10n.orders,
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.event_available_outlined),
-                    label: l10n.delivery,
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.more_horiz),
-                    label: l10n.more,
-                  ),
-                ],
-              )
-            : null,
-      ));
+      );
     },
   );
 
-  String _navigationShortcut(int index) => const ['Ctrl+1','Ctrl+2','Ctrl+3','Ctrl+4','Ctrl+5','Ctrl+6','Ctrl+Shift+4','Ctrl+9','Ctrl+7','Ctrl+,'][index];
+  String _navigationShortcut(int index) => const [
+    'Ctrl+1',
+    'Ctrl+2',
+    'Ctrl+3',
+    'Ctrl+4',
+    'Ctrl+5',
+    'Ctrl+6',
+    'Ctrl+Shift+4',
+    'Ctrl+9',
+    'Ctrl+7',
+    'Ctrl+,',
+  ][index];
 
   Widget _responsiveContent(AppLocalizations l10n) => LayoutBuilder(
     builder: (context, constraints) => MediaQuery(
@@ -369,6 +564,8 @@ class _MainShellState extends State<MainShell> {
       shopName: currentShopName,
       onSearch: (value) => search = value,
       onNavigate: _navigate,
+      onShopNameChanged: (value) => setState(() => currentShopName = value),
+      onLogoChanged: (path) => setState(() => shopLogoPath = path),
     ),
     1 => CustomersScreen(
       database: widget.database,

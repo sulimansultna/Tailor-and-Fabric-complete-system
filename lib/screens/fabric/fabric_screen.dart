@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
 import '../../commands/app_commands.dart';
 
 import 'package:intl/intl.dart' as intl;
@@ -97,649 +98,703 @@ class _FabricScreenState extends State<FabricScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
     final locale = Localizations.localeOf(context).toLanguageTag();
-    return CommandScope(commands: _keyboardCommands(), builder: (context) =>
-      Focus(
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration: MediaQuery.disableAnimationsOf(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-        builder: (context, value, child) => Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, (1 - value) * 8),
-            child: child,
+    return CommandScope(
+      commands: _keyboardCommands(),
+      builder: (context) => Focus(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) => Opacity(
+            opacity: value,
+            child: Transform.translate(
+              offset: Offset(0, (1 - value) * 8),
+              child: child,
+            ),
           ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: LayoutBuilder(
-            builder: (context, viewport) {
-              final rowsPerPage = rowsPerPagePreference ?? 5;
-              final tableHeight = (viewport.maxHeight * .4).clamp(120.0, 240.0);
-              final hasFilters =
-                  search.text.trim().isNotEmpty ||
-                  categoryFilter.isNotEmpty ||
-                  stockFilter != 'all' ||
-                  archived;
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: LayoutBuilder(
+              builder: (context, viewport) {
+                final rowsPerPage =
+                    rowsPerPagePreference ??
+                    (viewport.maxHeight >= 800 ? 10 : 5);
+                final tableHeight = (viewport.maxHeight * .4).clamp(
+                  120.0,
+                  240.0,
+                );
+                final hasFilters =
+                    search.text.trim().isNotEmpty ||
+                    categoryFilter.isNotEmpty ||
+                    stockFilter != 'all' ||
+                    archived;
 
-              return Scrollbar(
-                controller: _tableVerticalController,
-                thumbVisibility: true,
-                child: SingleChildScrollView(
+                return Scrollbar(
                   controller: _tableVerticalController,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 330,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  l10n.fabricInventory,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineSmall
-                                      ?.copyWith(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurface,
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _tableVerticalController,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildInventoryHeader(),
+                        const SizedBox(height: 10),
+                        _summaryCards(context, viewport.maxWidth),
+                        const SizedBox(height: 10),
+                        _buildInventoryFilters(hasFilters),
+                        const SizedBox(height: 8),
+                        FutureBuilder<List<Map<String, Object?>>>(
+                          future: data,
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              return SizedBox(
+                                height: tableHeight,
+                                child: _message(
+                                  _t('inventoryLoadError'),
+                                  retry: _refresh,
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  _t('description'),
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurfaceVariant,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          CommandButton(register: false, aliases: const ['action.new'], id: 'fabric.add', child: FilledButton.icon(
-                            onPressed: () => _edit(),
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size(0, 42),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(9),
-                              ),
-                            ),
-                            icon: const Icon(
-                              Icons.add_circle_outline,
-                              size: 19,
-                            ),
-                            label: Text(_t('addFabric')),
-                          )),
-                          OutlinedButton.icon(
-                            onPressed: _purchase,
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 42),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(9),
-                              ),
-                            ),
-                            icon: const Icon(
-                              Icons.shopping_cart_outlined,
-                              size: 19,
-                            ),
-                            label: Text(_t('buyFromSupplier')),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () async {
-                              final saved = await showSellFabricDialog(
-                                context,
-                                widget.database,
                               );
-                              if (saved == true)
-                                _showSuccess('fabricSaleSaved');
-                              if (mounted) _refresh();
-                            },
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 42),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(9),
-                              ),
-                            ),
-                            icon: const Icon(
-                              Icons.point_of_sale_outlined,
-                              size: 19,
-                            ),
-                            label: Text(l10n.sellFabric),
-                          ),
-                          IconButton(
-                            tooltip: l10n.refresh,
-                            onPressed: _refresh,
-                            icon: const Icon(Icons.refresh, size: 20),
-                          ),
-                          if (widget.onOpenProfitReport != null)
-                            OutlinedButton.icon(
-                              onPressed: widget.onOpenProfitReport,
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(0, 42),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
+                            }
+                            if (!snapshot.hasData) {
+                              return SizedBox(
+                                height: tableHeight,
+                                child: const Center(
+                                  child: CircularProgressIndicator(),
                                 ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(9),
+                              );
+                            }
+
+                            final query = search.text.trim().toLowerCase();
+                            final rows = snapshot.data!.where((row) {
+                              if (query.isNotEmpty &&
+                                  ![
+                                    row['name'],
+                                    row['code'],
+                                    row['color'],
+                                    row['barcode'],
+                                  ].any(
+                                    (value) => (value ?? '')
+                                        .toString()
+                                        .toLowerCase()
+                                        .contains(query),
+                                  )) {
+                                return false;
+                              }
+                              if (stockFilter != 'all' &&
+                                  !_supportsMeterStock(row)) {
+                                return false;
+                              }
+                              if (categoryFilter.isNotEmpty &&
+                                  row['category'] != categoryFilter) {
+                                return false;
+                              }
+                              final available = row['available'] as num? ?? 0;
+                              return switch (stockFilter) {
+                                'in' => available > 0 && !_isLow(row),
+                                'low' => available > 0 && _isLow(row),
+                                'out' => available <= 0,
+                                _ => true,
+                              };
+                            }).toList();
+                            _sortRows(rows);
+
+                            if (rows.isEmpty) {
+                              final noFabrics =
+                                  snapshot.data!.isEmpty &&
+                                  search.text.trim().isEmpty &&
+                                  categoryFilter.isEmpty &&
+                                  stockFilter == 'all' &&
+                                  !archived;
+                              return SizedBox(
+                                height: tableHeight,
+                                child: _message(
+                                  noFabrics
+                                      ? _t('noFabricsYet')
+                                      : _t('noSearchResults'),
+                                  actionLabel: noFabrics
+                                      ? _t('addFabric')
+                                      : _t('clearFilters'),
+                                  onAction: noFabrics
+                                      ? () => _edit()
+                                      : () {
+                                          search.clear();
+                                          setState(() {
+                                            categoryFilter = '';
+                                            stockFilter = 'all';
+                                            archived = false;
+                                            page = 0;
+                                            data = _load();
+                                          });
+                                        },
                                 ),
-                              ),
-                              icon: const Icon(
-                                Icons.bar_chart_outlined,
-                                size: 19,
-                              ),
-                              label: Text(_t('fabricProfitReport')),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      _summaryCards(context, viewport.maxWidth),
-                      const SizedBox(height: 14),
-                      Card(
-                        margin: EdgeInsets.zero,
-                        elevation: 0,
-                        color: Theme.of(context).colorScheme.surface,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: Theme.of(context).colorScheme.outlineVariant,
-                          ),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Wrap(
-                            spacing: 10,
-                            runSpacing: 8,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: 320,
-                                child: TextField(
-                                  controller: search,
-                                  focusNode: searchFocus,
-                                  onChanged: (_) => _scheduleSearch(),
-                                  onSubmitted: (_) {
-                                    _searchDebounce?.cancel();
-                                    setState(() => page = 0);
-                                  },
-                                  decoration: InputDecoration(
-                                    prefixIcon: const Icon(Icons.search),
-                                    labelText: _t('searchLabel'),
-                                    hintText: _t('search'),
-                                    isDense: false,
-                                    suffixIcon: search.text.isEmpty
-                                        ? null
-                                        : IconButton(
-                                            tooltip: _t('clearSearch'),
-                                            onPressed: () {
-                                              search.clear();
-                                              setState(() => page = 0);
-                                            },
-                                            icon: const Icon(Icons.clear),
-                                          ),
-                                  ),
-                                ),
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Padding(
+                              );
+                            }
+
+                            final maxPage = (rows.length - 1) ~/ rowsPerPage;
+                            page = math.min(page, maxPage);
+                            final firstIndex = page * rowsPerPage + 1;
+                            final lastIndex = math.min(
+                              (page + 1) * rowsPerPage,
+                              rows.length,
+                            );
+                            final tableWidth = math.max(
+                              1900.0,
+                              viewport.maxWidth,
+                            );
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Align(
+                                  alignment: AlignmentDirectional.centerEnd,
+                                  child: Padding(
                                     padding: const EdgeInsetsDirectional.only(
-                                      start: 4,
+                                      end: 4,
+                                      bottom: 6,
                                     ),
                                     child: Text(
-                                      _t('category'),
+                                      '$firstIndex–$lastIndex ${_t('of')} ${rows.length} ${_t('fabrics')}',
+                                      textDirection: TextDirection.ltr,
                                       style: Theme.of(context)
                                           .textTheme
-                                          .labelSmall,
+                                          .bodySmall,
                                     ),
-                                  ),
-                                  AnimatedSize(
-                                    duration:
-                                        MediaQuery.disableAnimationsOf(context)
-                                        ? Duration.zero
-                                        : const Duration(milliseconds: 180),
-                                    curve: Curves.easeOut,
-                                    child: Wrap(
-                                      spacing: 6,
-                                      runSpacing: 4,
-                                      children: [
-                                        _categoryChip('', _t('allCategories')),
-                                        _categoryChip(
-                                          'Clothing Fabric',
-                                          _t('clothing'),
-                                        ),
-                                        _categoryChip(
-                                          'Waistcoat / Coat Fabric',
-                                          _t('waistcoat'),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(
-                                width: 180,
-                                child: DropdownButtonFormField<String>(
-                                  key: ValueKey(stockFilter),
-                                  initialValue: stockFilter,
-                                  isExpanded: true,
-                                  decoration: InputDecoration(
-                                    labelText: _t('stockStatus'),
-                                    isDense: false,
-                                  ),
-                                  items: [
-                                    DropdownMenuItem(
-                                      value: 'all',
-                                      child: Text(_t('allStock')),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 'in',
-                                      child: Text(_t('inStock')),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 'low',
-                                      child: Text(_t('lowStock')),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 'out',
-                                      child: Text(_t('outOfStock')),
-                                    ),
-                                  ],
-                                  onChanged: (value) => setState(() {
-                                    stockFilter = value ?? 'all';
-                                    page = 0;
-                                  }),
-                                ),
-                              ),
-                              SizedBox(
-                                width: 160,
-                                child: DropdownButtonFormField<bool>(
-                                  key: ValueKey(archived),
-                                  initialValue: archived,
-                                  isExpanded: true,
-                                  decoration: InputDecoration(
-                                    labelText: _t('records'),
-                                    isDense: false,
-                                  ),
-                                  items: [
-                                    DropdownMenuItem(
-                                      value: false,
-                                      child: Text(_t('active')),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: true,
-                                      child: Text(_t('includeArchived')),
-                                    ),
-                                  ],
-                                  onChanged: (value) => setState(() {
-                                    archived = value ?? false;
-                                    page = 0;
-                                    data = _load();
-                                  }),
-                                ),
-                              ),
-                              TextButton.icon(
-                                onPressed: hasFilters
-                                    ? () {
-                                        search.clear();
-                                        setState(() {
-                                          categoryFilter = '';
-                                          stockFilter = 'all';
-                                          archived = false;
-                                          page = 0;
-                                          data = _load();
-                                        });
-                                      }
-                                    : null,
-                                icon: const Icon(Icons.filter_alt_off_outlined),
-                                label: Text(_t('clearFilters')),
-                              ),
-                              if (hasFilters)
-                                Text(
-                                  _t('filtersActive'),
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                      ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      FutureBuilder<List<Map<String, Object?>>>(
-                        future: data,
-                        builder: (context, snapshot) {
-                          if (snapshot.hasError) {
-                            return SizedBox(
-                              height: tableHeight,
-                              child: _message(
-                                _t('inventoryLoadError'),
-                                retry: _refresh,
-                              ),
-                            );
-                          }
-                          if (!snapshot.hasData) {
-                            return SizedBox(
-                              height: tableHeight,
-                              child: const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            );
-                          }
-
-                          final query = search.text.trim().toLowerCase();
-                          final rows = snapshot.data!.where((row) {
-                            if (query.isNotEmpty &&
-                                ![
-                                  row['name'],
-                                  row['code'],
-                                  row['color'],
-                                  row['barcode'],
-                                ].any(
-                                  (value) => (value ?? '')
-                                      .toString()
-                                      .toLowerCase()
-                                      .contains(query),
-                                )) {
-                              return false;
-                            }
-                            if (stockFilter != 'all' &&
-                                !_supportsMeterStock(row)) {
-                              return false;
-                            }
-                            if (categoryFilter.isNotEmpty &&
-                                row['category'] != categoryFilter) {
-                              return false;
-                            }
-                            final available = row['available'] as num? ?? 0;
-                            return switch (stockFilter) {
-                              'in' => available > 0 && !_isLow(row),
-                              'low' => available > 0 && _isLow(row),
-                              'out' => available <= 0,
-                              _ => true,
-                            };
-                          }).toList();
-                          _sortRows(rows);
-
-                          if (rows.isEmpty) {
-                            final noFabrics =
-                                snapshot.data!.isEmpty &&
-                                search.text.trim().isEmpty &&
-                                categoryFilter.isEmpty &&
-                                stockFilter == 'all' &&
-                                !archived;
-                            return SizedBox(
-                              height: tableHeight,
-                              child: _message(
-                                noFabrics
-                                    ? _t('noFabricsYet')
-                                    : _t('noSearchResults'),
-                                actionLabel: noFabrics
-                                    ? _t('addFabric')
-                                    : _t('clearFilters'),
-                                onAction: noFabrics
-                                    ? () => _edit()
-                                    : () {
-                                        search.clear();
-                                        setState(() {
-                                          categoryFilter = '';
-                                          stockFilter = 'all';
-                                          archived = false;
-                                          page = 0;
-                                          data = _load();
-                                        });
-                                      },
-                              ),
-                            );
-                          }
-
-                          final maxPage = (rows.length - 1) ~/ rowsPerPage;
-                          page = math.min(page, maxPage);
-                          final firstIndex = page * rowsPerPage + 1;
-                          final lastIndex = math.min(
-                            (page + 1) * rowsPerPage,
-                            rows.length,
-                          );
-                          final tableWidth = math.max(
-                            1900.0,
-                            viewport.maxWidth,
-                          );
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Align(
-                                alignment: AlignmentDirectional.centerEnd,
-                                child: Padding(
-                                  padding: const EdgeInsetsDirectional.only(
-                                    end: 4,
-                                    bottom: 6,
-                                  ),
-                                  child: Text(
-                                    '$firstIndex–$lastIndex ${_t('of')} ${rows.length} ${_t('fabrics')}',
-                                    textDirection: TextDirection.ltr,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall,
                                   ),
                                 ),
-                              ),
-                              Card(
-                                margin: EdgeInsets.zero,
-                                clipBehavior: Clip.antiAlias,
-                                color: Theme.of(context).colorScheme.surface,
-                                child: Scrollbar(
-                                  controller: _tableHorizontalController,
-                                  thumbVisibility: true,
-                                  notificationPredicate: (notification) =>
-                                      notification.metrics.axis ==
-                                      Axis.horizontal,
-                                  child: SingleChildScrollView(
+                                Card(
+                                  margin: EdgeInsets.zero,
+                                  clipBehavior: Clip.antiAlias,
+                                  color: Theme.of(context).colorScheme.surface,
+                                  child: Scrollbar(
                                     controller: _tableHorizontalController,
-                                    scrollDirection: Axis.horizontal,
-                                    child: SizedBox(
-                                      width: tableWidth,
-                                      child: PaginatedDataTable(
-                                        key: ValueKey(
-                                          '${search.text}|$categoryFilter|$stockFilter|$archived|$sortColumnIndex|$sortAscending|$page|$rowsPerPage',
-                                        ),
-                                        initialFirstRowIndex:
-                                            page * rowsPerPage,
-                                        sortColumnIndex: sortColumnIndex,
-                                        sortAscending: sortAscending,
-                                        rowsPerPage: rowsPerPage,
-                                        availableRowsPerPage: const [5, 10],
-                                        onRowsPerPageChanged: (value) {
-                                          if (value == null) return;
-                                          setState(() {
-                                            rowsPerPagePreference = value;
-                                            page = 0;
-                                          });
-                                        },
-                                        showCheckboxColumn: false,
-                                        showFirstLastButtons: true,
-                                        horizontalMargin: 14,
-                                        columnSpacing: 18,
-                                        showEmptyRows: false,
-                                        headingRowColor: WidgetStatePropertyAll(
-                                          Theme.of(context)
-                                              .colorScheme
-                                              .surfaceContainerLow,
-                                        ),
-                                        onPageChanged: (firstRowIndex) {
-                                          setState(() {
-                                            page = firstRowIndex ~/ rowsPerPage;
-                                          });
-                                        },
-                                        headingRowHeight: 54,
-                                        dataRowMinHeight: 56,
-                                        dataRowMaxHeight: 64,
-                                        columns: [
-                                          _column(
-                                            _t('fabricCode'),
-                                            0,
-                                            onSort: _onSort,
+                                    thumbVisibility: true,
+                                    notificationPredicate: (notification) =>
+                                        notification.metrics.axis ==
+                                        Axis.horizontal,
+                                    child: SingleChildScrollView(
+                                      controller: _tableHorizontalController,
+                                      scrollDirection: Axis.horizontal,
+                                      child: SizedBox(
+                                        width: tableWidth,
+                                        child: PaginatedDataTable(
+                                          key: ValueKey(
+                                            '${search.text}|$categoryFilter|$stockFilter|$archived|$sortColumnIndex|$sortAscending|$page|$rowsPerPage',
                                           ),
-                                          _column(
-                                            _t('fabricName'),
-                                            1,
-                                            onSort: _onSort,
-                                          ),
-                                          _column(
-                                            _t('category'),
-                                            2,
-                                            onSort: _onSort,
-                                          ),
-                                          _column(
-                                            _t('color'),
-                                            3,
-                                            onSort: _onSort,
-                                          ),
-                                          _column(
-                                            '${_t('onHand')} (${context.l10n.fabricFormMeter})',
-                                            4,
-                                            numeric: true,
-                                            onSort: _onSort,
-                                          ),
-                                          _column(
-                                            '${_t('reserved')} (${context.l10n.fabricFormMeter})',
-                                            5,
-                                            numeric: true,
-                                            tooltip: _t('reservedTooltip'),
-                                            onSort: _onSort,
-                                          ),
-                                          _column(
-                                            '${_t('available')} (${context.l10n.fabricFormMeter})',
-                                            6,
-                                            numeric: true,
-                                            tooltip: _t('availableFormula'),
-                                            onSort: _onSort,
-                                          ),
-                                          _column(
-                                            _t('defaultBuyingPrice'),
-                                            7,
-                                            numeric: true,
-                                            onSort: _onSort,
-                                          ),
-                                          _column(
-                                            _t('sellingPricePerMeter'),
-                                            8,
-                                            numeric: true,
-                                            onSort: _onSort,
-                                          ),
-                                          _column(
-                                            _t('expectedMarginPerMeter'),
-                                            9,
-                                            numeric: true,
-                                            tooltip: _t('marginTooltip'),
-                                            onSort: _onSort,
-                                          ),
-                                          _column(
-                                            _t('stock'),
-                                            10,
-                                            onSort: _onSort,
-                                          ),
-                                          DataColumn(
-                                            label: Text(
-                                              _t('actions'),
-                                              style: TextStyle(
-                                                color: Theme.of(context)
+                                          initialFirstRowIndex:
+                                              page * rowsPerPage,
+                                          sortColumnIndex: sortColumnIndex,
+                                          sortAscending: sortAscending,
+                                          rowsPerPage: rowsPerPage,
+                                          availableRowsPerPage: const [5, 10],
+                                          onRowsPerPageChanged: (value) {
+                                            if (value == null) return;
+                                            setState(() {
+                                              rowsPerPagePreference = value;
+                                              page = 0;
+                                            });
+                                          },
+                                          showCheckboxColumn: false,
+                                          showFirstLastButtons: true,
+                                          horizontalMargin: 14,
+                                          columnSpacing: 18,
+                                          showEmptyRows: false,
+                                          headingRowColor:
+                                              WidgetStatePropertyAll(
+                                                Theme.of(context)
                                                     .colorScheme
-                                                    .onSurface,
-                                                fontWeight: FontWeight.w700,
+                                                    .surfaceContainerLow,
+                                              ),
+                                          onPageChanged: (firstRowIndex) {
+                                            setState(() {
+                                              page =
+                                                  firstRowIndex ~/ rowsPerPage;
+                                            });
+                                          },
+                                          headingRowHeight: 54,
+                                          dataRowMinHeight: 56,
+                                          dataRowMaxHeight: 64,
+                                          columns: [
+                                            _column(
+                                              _t('fabricCode'),
+                                              0,
+                                              onSort: _onSort,
+                                            ),
+                                            _column(
+                                              _t('fabricName'),
+                                              1,
+                                              onSort: _onSort,
+                                            ),
+                                            _column(
+                                              _t('category'),
+                                              2,
+                                              onSort: _onSort,
+                                            ),
+                                            _column(
+                                              _t('color'),
+                                              3,
+                                              onSort: _onSort,
+                                            ),
+                                            _column(
+                                              '${_t('onHand')} (${context.l10n.fabricFormMeter})',
+                                              4,
+                                              numeric: true,
+                                              onSort: _onSort,
+                                            ),
+                                            _column(
+                                              '${_t('reserved')} (${context.l10n.fabricFormMeter})',
+                                              5,
+                                              numeric: true,
+                                              tooltip: _t('reservedTooltip'),
+                                              onSort: _onSort,
+                                            ),
+                                            _column(
+                                              '${_t('available')} (${context.l10n.fabricFormMeter})',
+                                              6,
+                                              numeric: true,
+                                              tooltip: _t('availableFormula'),
+                                              onSort: _onSort,
+                                            ),
+                                            _column(
+                                              _t('defaultBuyingPrice'),
+                                              7,
+                                              numeric: true,
+                                              onSort: _onSort,
+                                            ),
+                                            _column(
+                                              _t('sellingPricePerMeter'),
+                                              8,
+                                              numeric: true,
+                                              onSort: _onSort,
+                                            ),
+                                            _column(
+                                              _t('expectedMarginPerMeter'),
+                                              9,
+                                              numeric: true,
+                                              tooltip: _t('marginTooltip'),
+                                              onSort: _onSort,
+                                            ),
+                                            _column(
+                                              _t('stock'),
+                                              10,
+                                              onSort: _onSort,
+                                            ),
+                                            DataColumn(
+                                              label: Text(
+                                                _t('actions'),
+                                                style: TextStyle(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurface,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
                                               ),
                                             ),
+                                          ],
+                                          source: _FabricTableSource(
+                                            rows: rows,
+                                            locale: locale,
+                                            onDetails: _details,
+                                            actions: _rowActions,
+                                            status: _status,
+                                            quantity: _quantity,
+                                            price: _price,
+                                            margin: _margin,
+                                            categoryLabel: (row) {
+                                              final category =
+                                                  (row['category'] ?? '')
+                                                      .toString()
+                                                      .trim();
+                                              return category.isEmpty
+                                                  ? _t('legacyReview')
+                                                  : _localizedFabricCategory(
+                                                      context,
+                                                      category,
+                                                    );
+                                            },
+                                            colorCell: _colorCell,
+                                            photo: _photoThumb,
+                                            highlightedId:
+                                                AppCommandRegistry.maybeOf(
+                                                      context,
+                                                    )?.selected('fabric')?['id']
+                                                    as int? ??
+                                                _highlightedFabricId,
+                                            onSelect: (row) =>
+                                                AppCommandRegistry.maybeOf(
+                                                  context,
+                                                )?.select('fabric', row),
+                                            colors: Theme.of(context)
+                                                .colorScheme,
                                           ),
-                                        ],
-                                        source: _FabricTableSource(
-                                          rows: rows,
-                                          locale: locale,
-                                          onDetails: _details,
-                                          actions: _rowActions,
-                                          status: _status,
-                                          quantity: _quantity,
-                                          price: _price,
-                                          margin: _margin,
-                                          categoryLabel: (row) {
-                                            final category =
-                                                (row['category'] ?? '')
-                                                    .toString()
-                                                    .trim();
-                                            return category.isEmpty
-                                                ? _t('legacyReview')
-                                                : _localizedFabricCategory(
-                                                    context,
-                                                    category,
-                                                  );
-                                          },
-                                          colorCell: _colorCell,
-                                          photo: _photoThumb,
-                                          highlightedId: AppCommandRegistry.maybeOf(context)?.selected('fabric')?['id'] as int? ?? _highlightedFabricId,
-                                          onSelect: (row) => AppCommandRegistry.maybeOf(context)?.select('fabric', row),
-                                          colors: Theme.of(context).colorScheme,
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    ],
+                              ],
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
       ),
-    ));
+    );
+  }
+
+  Widget _buildInventoryHeader() {
+    final l10n = context.l10n;
+    final style = ButtonStyle(
+      minimumSize: const WidgetStatePropertyAll(Size(0, 36)),
+      padding: const WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 12),
+      ),
+      textStyle: WidgetStatePropertyAll(
+        Theme.of(context).textTheme.labelLarge?.copyWith(fontSize: 13),
+      ),
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+      ),
+      visualDensity: VisualDensity.compact,
+    );
+    final title = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          l10n.fabricInventory,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.headlineSmall
+              ?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        Text(
+          _t('description'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+    final actions = SingleChildScrollView(
+      key: const ValueKey('fabric-actions'),
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CommandButton(
+            register: false,
+            aliases: const ['action.new'],
+            id: 'fabric.add',
+            child: FilledButton.icon(
+              style: style,
+              onPressed: () => _edit(),
+              icon: const Icon(Icons.add_circle_outline, size: 18),
+              label: Text(_t('addFabric')),
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            style: style,
+            onPressed: _purchase,
+            icon: const Icon(Icons.shopping_cart_outlined, size: 18),
+            label: Text(_t('buyFromSupplier')),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            style: style,
+            onPressed: () async {
+              final saved = await showSellFabricDialog(
+                context,
+                widget.database,
+              );
+              if (saved == true) _showSuccess('fabricSaleSaved');
+              if (mounted) _refresh();
+            },
+            icon: const Icon(Icons.point_of_sale_outlined, size: 18),
+            label: Text(l10n.sellFabric),
+          ),
+          if (widget.onOpenProfitReport != null) ...[
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              key: const ValueKey('fabric-profit-report'),
+              style: style,
+              onPressed: widget.onOpenProfitReport,
+              icon: const Icon(Icons.bar_chart_outlined, size: 18),
+              label: Text(_t('fabricProfitReport')),
+            ),
+          ],
+          const SizedBox(width: 4),
+          IconButton(
+            tooltip: l10n.refresh,
+            onPressed: _refresh,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.refresh, size: 20),
+          ),
+        ],
+      ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 980) {
+          return Row(
+            children: [
+              SizedBox(width: 220, child: title),
+              const SizedBox(width: 16),
+              Expanded(child: actions),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [title, const SizedBox(height: 6), actions],
+        );
+      },
+    );
+  }
+
+  void _clearInventoryFilters() {
+    search.clear();
+    setState(() {
+      categoryFilter = '';
+      stockFilter = 'all';
+      archived = false;
+      page = 0;
+      data = _load();
+    });
+  }
+
+  Widget _buildInventoryFilters(bool hasFilters) {
+    final colors = Theme.of(context).colorScheme;
+    InputDecoration decoration(String label) => InputDecoration(
+      labelText: label,
+      isDense: true,
+      labelStyle: Theme.of(context).textTheme.bodySmall,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+    );
+    Widget optionLabel(String label) =>
+        Text(label, maxLines: 1, overflow: TextOverflow.ellipsis);
+    return Card(
+      key: const ValueKey('fabric-filters'),
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      color: colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: colors.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: math.max(960, constraints.maxWidth),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 220,
+                    height: 44,
+                    child: TextField(
+                      controller: search,
+                      focusNode: searchFocus,
+                      onChanged: (_) => _scheduleSearch(),
+                      onSubmitted: (_) {
+                        _searchDebounce?.cancel();
+                        setState(() => page = 0);
+                      },
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(fontSize: 13),
+                      decoration: decoration(_t('searchLabel')).copyWith(
+                        hintText: _t('search'),
+                        prefixIcon: const Icon(Icons.search, size: 19),
+                        prefixIconConstraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                        suffixIconConstraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                        suffixIcon: search.text.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: _t('clearSearch'),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () {
+                                  search.clear();
+                                  setState(() => page = 0);
+                                },
+                                icon: const Icon(Icons.clear, size: 17),
+                              ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Semantics(
+                      label: _t('category'),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _categoryChip('', context.l10n.all),
+                            const SizedBox(width: 5),
+                            _categoryChip('Clothing Fabric', _t('clothing')),
+                            const SizedBox(width: 5),
+                            _categoryChip(
+                              'Waistcoat / Coat Fabric',
+                              _t('waistcoat'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 140,
+                    height: 44,
+                    child: DropdownButtonFormField<String>(
+                      key: ValueKey(stockFilter),
+                      initialValue: stockFilter,
+                      isExpanded: true,
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(fontSize: 13),
+                      decoration: decoration(_t('stockStatus')),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'all',
+                          child: optionLabel(_t('allStock')),
+                        ),
+                        DropdownMenuItem(
+                          value: 'in',
+                          child: optionLabel(_t('inStock')),
+                        ),
+                        DropdownMenuItem(
+                          value: 'low',
+                          child: optionLabel(_t('lowStock')),
+                        ),
+                        DropdownMenuItem(
+                          value: 'out',
+                          child: optionLabel(_t('outOfStock')),
+                        ),
+                      ],
+                      onChanged: (value) => setState(() {
+                        stockFilter = value ?? 'all';
+                        page = 0;
+                      }),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 160,
+                    height: 44,
+                    child: DropdownButtonFormField<bool>(
+                      key: ValueKey(archived),
+                      initialValue: archived,
+                      isExpanded: true,
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(fontSize: 13),
+                      decoration: decoration(_t('records')),
+                      items: [
+                        DropdownMenuItem(
+                          value: false,
+                          child: optionLabel(_t('active')),
+                        ),
+                        DropdownMenuItem(
+                          value: true,
+                          child: optionLabel(_t('includeArchived')),
+                        ),
+                      ],
+                      onChanged: (value) => setState(() {
+                        archived = value ?? false;
+                        page = 0;
+                        data = _load();
+                      }),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: _t('clearFilters'),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: hasFilters ? _clearInventoryFilters : null,
+                    icon: const Icon(Icons.filter_alt_off_outlined, size: 20),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   List<AppCommand> _keyboardCommands() => [
     AppCommand('fabric.add', () => _edit(), aliases: [CommandKey.add]),
     AppCommand(CommandKey.search, searchFocus.requestFocus),
-    AppCommand(CommandKey.refresh, () async { await _load(); if (mounted) _refresh(); }),
-    AppCommand('fabric.edit', () => _fabricCommand(_edit), aliases: [CommandKey.edit]),
-    AppCommand('fabric.remove', () => _fabricCommand(_deleteFabric), aliases: [CommandKey.remove]),
+    AppCommand(CommandKey.refresh, () async {
+      await _load();
+      if (mounted) _refresh();
+    }),
+    AppCommand(
+      'fabric.edit',
+      () => _fabricCommand(_edit),
+      aliases: [CommandKey.edit],
+    ),
+    AppCommand(
+      'fabric.remove',
+      () => _fabricCommand(_deleteFabric),
+      aliases: [CommandKey.remove],
+    ),
     AppCommand('fabric.details', () => _fabricCommand(_details)),
-    AppCommand('fabric.stockIn', () => _fabricCommand((row) => _stockIn(row), eligible: (row) => _supportsMeterStock(row) && (row['archived'] as num? ?? 0) == 0)),
-    AppCommand('fabric.adjust', () => _fabricCommand(_adjust, eligible: (row) => _supportsMeterStock(row) && (row['archived'] as num? ?? 0) == 0)),
+    AppCommand(
+      'fabric.stockIn',
+      () => _fabricCommand(
+        (row) => _stockIn(row),
+        eligible: (row) =>
+            _supportsMeterStock(row) && (row['archived'] as num? ?? 0) == 0,
+      ),
+    ),
+    AppCommand(
+      'fabric.adjust',
+      () => _fabricCommand(
+        _adjust,
+        eligible: (row) =>
+            _supportsMeterStock(row) && (row['archived'] as num? ?? 0) == 0,
+      ),
+    ),
     AppCommand('fabric.archive', () => _fabricCommand(_toggleArchive)),
-    AppCommand('fabric.sale', () => _fabricCommand((row) async { await showSellFabricDialog(context, widget.database, initialFabricId: row['id'] as int); if (mounted) _refresh(); }, eligible: (row) => _supportsMeterStock(row) && (row['archived'] as num? ?? 0) == 0)),
+    AppCommand(
+      'fabric.sale',
+      () => _fabricCommand(
+        (row) async {
+          await showSellFabricDialog(
+            context,
+            widget.database,
+            initialFabricId: row['id'] as int,
+          );
+          if (mounted) _refresh();
+        },
+        eligible: (row) =>
+            _supportsMeterStock(row) && (row['archived'] as num? ?? 0) == 0,
+      ),
+    ),
   ];
 
-  Future<void> _fabricCommand(Future<void> Function(Map<String, Object?>) action, {bool Function(Map<String, Object?>)? eligible}) =>
-      withCommandRecord(context, 'fabric', data, action, eligible: eligible);
+  Future<void> _fabricCommand(
+    Future<void> Function(Map<String, Object?>) action, {
+    bool Function(Map<String, Object?>)? eligible,
+  }) => withCommandRecord(context, 'fabric', data, action, eligible: eligible);
 
   Widget _summaryCards(BuildContext context, double availableWidth) {
     final active = (_summaryRows ?? const <Map<String, Object?>>[])
@@ -1382,6 +1437,12 @@ class _FabricScreenState extends State<FabricScreen> {
 
   Widget _categoryChip(String value, String label) => ChoiceChip(
     label: Text(label),
+    labelStyle: Theme.of(context).textTheme.labelMedium,
+    labelPadding: const EdgeInsets.symmetric(horizontal: 7),
+    padding: EdgeInsets.zero,
+    visualDensity: VisualDensity.compact,
+    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    showCheckmark: false,
     selected: categoryFilter == value,
     onSelected: (selected) {
       if (!selected) return;
@@ -1679,10 +1740,13 @@ class _FabricScreenState extends State<FabricScreen> {
         title: Text(_t('deleteFabric')),
         content: Text(_t('deleteFabricConfirm')),
         actions: [
-          CommandButton(id: 'action.cancel', child: TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(context.l10n.cancel),
-          )),
+          CommandButton(
+            id: 'action.cancel',
+            child: TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(context.l10n.cancel),
+            ),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
@@ -1719,10 +1783,13 @@ class _FabricScreenState extends State<FabricScreen> {
           title: Text(_t('archive')),
           content: Text(_t('archiveConfirm')),
           actions: [
-            CommandButton(id: 'action.cancel', child: TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(context.l10n.cancel),
-            )),
+            CommandButton(
+              id: 'action.cancel',
+              child: TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(context.l10n.cancel),
+              ),
+            ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
               child: Text(_t('archive')),
@@ -1815,14 +1882,20 @@ class _FabricScreenState extends State<FabricScreen> {
           ),
         ),
         actions: [
-          CommandButton(id: 'action.cancel', child: TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(context.l10n.cancel),
-          )),
-          CommandButton(id: 'action.save', child: FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(context.l10n.save),
-          )),
+          CommandButton(
+            id: 'action.cancel',
+            child: TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(context.l10n.cancel),
+            ),
+          ),
+          CommandButton(
+            id: 'action.save',
+            child: FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(context.l10n.save),
+            ),
+          ),
         ],
       ),
     );
@@ -1878,10 +1951,13 @@ class _FabricScreenState extends State<FabricScreen> {
           ),
         ),
         actions: [
-          CommandButton(id: 'action.cancel', child: TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(context.l10n.cancel),
-          )),
+          CommandButton(
+            id: 'action.cancel',
+            child: TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(context.l10n.cancel),
+            ),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(_t('postAdjustment')),
@@ -2494,10 +2570,13 @@ class _FabricFormDialogState extends State<_FabricFormDialog> {
           _ => 'Your fabric changes have not been saved.',
         }),
         actions: [
-          CommandButton(id: 'action.cancel', child: TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(context.l10n.cancel),
-          )),
+          CommandButton(
+            id: 'action.cancel',
+            child: TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(context.l10n.cancel),
+            ),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(context.l10n.discard),
@@ -3068,10 +3147,13 @@ class _FabricFormDialogState extends State<_FabricFormDialog> {
                 ),
         ),
         actions: [
-          CommandButton(id: 'action.cancel', child: TextButton(
-            onPressed: saving ? null : _closeForm,
-            child: Text(context.l10n.cancel),
-          )),
+          CommandButton(
+            id: 'action.cancel',
+            child: TextButton(
+              onPressed: saving ? null : _closeForm,
+              child: Text(context.l10n.cancel),
+            ),
+          ),
           if (!isEditing)
             OutlinedButton(
               onPressed: saving || !loaded
@@ -3079,19 +3161,22 @@ class _FabricFormDialogState extends State<_FabricFormDialog> {
                   : () => _save(addAnother: true),
               child: Text(context.l10n.fabricFormSaveAnother),
             ),
-          CommandButton(id: 'action.save', child: FilledButton(
-            onPressed:
-                saving || !loaded || needsUnitReview || needsCategoryReview
-                ? null
-                : () => _save(),
-            child: saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(context.l10n.fabricFormSave),
-          )),
+          CommandButton(
+            id: 'action.save',
+            child: FilledButton(
+              onPressed:
+                  saving || !loaded || needsUnitReview || needsCategoryReview
+                  ? null
+                  : () => _save(),
+              child: saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(context.l10n.fabricFormSave),
+            ),
+          ),
         ],
       ),
     );
@@ -3317,7 +3402,10 @@ class _FabricTableSource extends DataTableSource {
     return DataRow.byIndex(
       index: index,
       selected: row['id'] == highlightedId,
-      onSelectChanged: (_) { onSelect(row); onDetails(row); },
+      onSelectChanged: (_) {
+        onSelect(row);
+        onDetails(row);
+      },
       color: WidgetStateProperty.resolveWith((states) {
         if (row['id'] == highlightedId) {
           return colors.primary.withValues(alpha: .10);

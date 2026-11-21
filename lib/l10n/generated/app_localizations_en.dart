@@ -1061,6 +1061,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fabricName => 'Fabric';
 
   @override
+  String get fabricSearchHint => 'Search by fabric ID, code, or name';
+
+  @override
+  String get fabricSearchEmpty => 'No fabrics match this search.';
+
+  @override
   String get customerOptionalPaid => 'Customer (optional for paid sale)';
 
   @override
@@ -2773,4 +2779,189 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get reportFabricPriceProfitNote =>
       'Profit per meter is the current selling price minus the saved buying price for each active fabric. This current price comparison is not limited to the selected date range. Earned fabric profit continues to use recorded transaction prices and costs.';
+
+  @override
+  String get dashTodayOrders => 'Today\'s orders';
+
+  @override
+  String get dashTodayOrdersHint => 'Received today';
+
+  @override
+  String get dashReadyCollection => 'Ready for collection';
+
+  @override
+  String get dashReadyCollectionHint => 'Waiting for the customer';
+
+  @override
+  String get dashCustomerDue => 'Customer amounts due';
+
+  @override
+  String get dashCustomerDueHint => 'Current outstanding balances';
+
+  @override
+  String get dashSupplierDue => 'Supplier amounts due';
+
+  @override
+  String get dashSupplierDueHint => 'Current outstanding balances';
+
+  @override
+  String get dashFabricAvailable => 'Available fabric';
+
+  @override
+  String get dashFabricAvailableHint => 'Meters on hand now';
+
+  @override
+  String get dashNetProfit => 'Net profit';
+
+  @override
+  String get dashNetProfitHint => 'Selected period, after recorded costs';
+
+  @override
+  String get dashProfitUnavailableShort => 'Unavailable';
+
+  @override
+  String get dashProfitUnavailableHint =>
+      'Record missing fabric costs before net profit can be calculated';
+
+  @override
+  String get dashNothingDue => 'Nothing due now';
+
+  @override
+  String get dashPeriodToday => 'Today';
+
+  @override
+  String get dashPeriodMonth => 'This month';
+
+  @override
+  String get dashPeriodYear => 'This year';
+
+  @override
+  String get dashPeriodScope =>
+      'Today and current balances do not change with this period. Profit follows it.';
+
+  @override
+  String get dashBadgeToday => 'Today';
+
+  @override
+  String get dashBadgePeriod => 'Period';
+
+  @override
+  String get dashBadgeBalance => 'Balance';
+
+  @override
+  String get dashMoreFigures => 'More figures';
+
+  @override
+  String get dashSearchCustomersOrBills => 'Search customers or bills';
+
+  @override
+  String get dashSearchCustomersOrBillsHint =>
+      'Name, phone, customer ID, or bill number';
+
+  @override
+  String get dashBills => 'Bills';
+
+  @override
+  String get dashFindCustomer => 'Find customer';
+
+  @override
+  String get dashPurchaseFabric => 'Purchase fabric';
+
+  @override
+  String get dashTodayDeliveries => 'Today\'s deliveries';
+
+  @override
+  String get dashEmptyToday => 'Nothing is due for handover today.';
+
+  @override
+  String get dashRecentOrders => 'Recent orders';
+
+  @override
+  String get dashEmptyRecent =>
+      'No orders yet. Create the first order to see it here.';
+
+  @override
+  String get dashLowFabric => 'Fabric needing attention';
+
+  @override
+  String get dashLowLabel => 'Low stock';
+
+  @override
+  String get dashEmptyLowFabric => 'No fabric is at or below its alert level.';
+
+  @override
+  String get dashProfitChart => 'Profit for the selected period';
+
+  @override
+  String get dashOrdersChart => 'Orders over time';
+
+  @override
+  String get dashNoOrdersInPeriod => 'No orders in this period.';
+
+  @override
+  String get dashProfitNote =>
+      'Net profit is fabric profit plus stitching revenue, minus posted expenses. Stitching revenue is not stitching profit.';
+
+  @override
+  String get dashGrossUnavailable =>
+      'Gross and net profit stay hidden until every fabric cost is recorded.';
+
+  @override
+  String get dashProfileAddDetail => 'Not added yet';
+
+  @override
+  String get dashProfileEmptyHint =>
+      'Add the shop name, phone, and address. They appear here and on printed receipts.';
+
+  @override
+  String get dashAmountDue => 'Amount due';
+
+  @override
+  String get dashPaid => 'Paid';
+
+  @override
+  String get dashCashCollected => 'Cash collected';
+
+  @override
+  String get dashLoadingFigures => 'Loading figures';
+
+  @override
+  String get dashInsightFailed => 'Profit figures could not be loaded.';
+
+  @override
+  String get profileShopIdentity => 'Shop identity';
+
+  @override
+  String get profileContactDetails => 'Contact details';
+
+  @override
+  String get profileLogoTitle => 'Shop logo';
+
+  @override
+  String get profileChoosePhoto => 'Choose photo';
+
+  @override
+  String get profileChangePhoto => 'Change photo';
+
+  @override
+  String get profileRemovePhoto => 'Remove';
+
+  @override
+  String get profileLogoHint =>
+      'Used on the dashboard and on printed receipts.';
+
+  @override
+  String get profileFieldRequired => 'Enter the shop name.';
+
+  @override
+  String get profileSaved => 'Shop profile saved';
+
+  @override
+  String get profileSaveFailed => 'Could not save the shop profile.';
+
+  @override
+  String get profileInvalidLogo => 'Choose a PNG, JPG, JPEG, or WebP image.';
+
+  @override
+  String get profileLogoPreview => 'Logo preview';
 }

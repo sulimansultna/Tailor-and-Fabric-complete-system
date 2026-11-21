@@ -149,7 +149,7 @@ void main() {
         'White Cotton',
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Add to invoice'));
+      await tester.tap(find.widgetWithText(TextButton, 'Add'));
       await tester.pumpAndSettle();
 
       await tester.enterText(textField('Quantity (meters)'), '2.5');
@@ -188,7 +188,10 @@ void main() {
         expect(tester.takeException(), isNull);
       }
 
-      await tester.tap(find.byTooltip('Add supplier'));
+      await tester.ensureVisible(
+        find.widgetWithText(TextButton, 'Add supplier'),
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Add supplier'));
       await tester.pumpAndSettle();
       await tester.enterText(textField('Supplier *').last, 'New Supplier');
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
@@ -197,6 +200,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(textField('Amount paid now'));
       await tester.enterText(textField('Amount paid now'), '100');
       await tester.tap(find.text('Confirm purchase'));
       await tester.pumpAndSettle();

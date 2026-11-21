@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 
 import '../../../core/formatters.dart';
 import '../../../data/shop_database.dart';
+import '../../../l10n/app_localizations_extensions.dart';
 import '../dashboard_strings.dart';
+import 'dashboard_panel.dart';
 
 class CustomerSearchSection extends StatefulWidget {
   const CustomerSearchSection({
@@ -16,6 +18,7 @@ class CustomerSearchSection extends StatefulWidget {
     required this.onAddCustomer,
     required this.onViewAll,
     required this.onQueryChanged,
+    required this.onOpenBill,
     this.searchFocusNode,
   });
 
@@ -25,6 +28,7 @@ class CustomerSearchSection extends StatefulWidget {
   final ValueChanged<String> onAddCustomer;
   final VoidCallback onViewAll;
   final ValueChanged<String> onQueryChanged;
+  final ValueChanged<Map<String, Object?>> onOpenBill;
   final FocusNode? searchFocusNode;
 
   @override
@@ -36,6 +40,7 @@ class _CustomerSearchSectionState extends State<CustomerSearchSection> {
   late final focusNode = widget.searchFocusNode ?? FocusNode();
   Timer? debounce;
   List<Map<String, Object?>> matches = [];
+  List<Map<String, Object?>> bills = [];
   int activeIndex = -1;
   bool loading = false;
   String? error;
@@ -55,6 +60,7 @@ class _CustomerSearchSectionState extends State<CustomerSearchSection> {
     if (value.trim().isEmpty) {
       setState(() {
         matches = [];
+        bills = [];
         loading = false;
         error = null;
         activeIndex = -1;
@@ -68,11 +74,17 @@ class _CustomerSearchSectionState extends State<CustomerSearchSection> {
     debounce = Timer(const Duration(milliseconds: 220), _search);
   }
 
+  int get _resultCount => matches.length + bills.length;
+
   void _submit() {
     if (activeIndex >= 0 && activeIndex < matches.length) {
       widget.onSelect(matches[activeIndex]);
-    } else if (matches.length == 1) {
+    } else if (activeIndex >= matches.length && activeIndex < _resultCount) {
+      widget.onOpenBill(bills[activeIndex - matches.length]);
+    } else if (matches.length == 1 && bills.isEmpty) {
       widget.onSelect(matches.single);
+    } else if (bills.length == 1 && matches.isEmpty) {
+      widget.onOpenBill(bills.single);
     }
   }
 
@@ -83,10 +95,14 @@ class _CustomerSearchSectionState extends State<CustomerSearchSection> {
       error = null;
     });
     try {
-      final result = await widget.database.searchCustomers(controller.text);
+      final results = await Future.wait([
+        widget.database.searchCustomers(controller.text),
+        widget.database.searchOrders(query: controller.text),
+      ]);
       if (!mounted || id != requestId) return;
       setState(() {
-        matches = result;
+        matches = results[0];
+        bills = results[1].take(6).toList();
         loading = false;
         activeIndex = -1;
       });
@@ -102,14 +118,14 @@ class _CustomerSearchSectionState extends State<CustomerSearchSection> {
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     if (event.logicalKey == LogicalKeyboardKey.arrowDown &&
-        matches.isNotEmpty) {
-      setState(() => activeIndex = (activeIndex + 1) % matches.length);
+        _resultCount > 0) {
+      setState(() => activeIndex = (activeIndex + 1) % _resultCount);
       return KeyEventResult.handled;
     }
-    if (event.logicalKey == LogicalKeyboardKey.arrowUp && matches.isNotEmpty) {
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp && _resultCount > 0) {
       setState(
         () => activeIndex = activeIndex <= 0
-            ? matches.length - 1
+            ? _resultCount - 1
             : activeIndex - 1,
       );
       return KeyEventResult.handled;
@@ -119,8 +135,16 @@ class _CustomerSearchSectionState extends State<CustomerSearchSection> {
         widget.onSelect(matches[activeIndex]);
         return KeyEventResult.handled;
       }
-      if (matches.length == 1) {
+      if (activeIndex >= matches.length && activeIndex < _resultCount) {
+        widget.onOpenBill(bills[activeIndex - matches.length]);
+        return KeyEventResult.handled;
+      }
+      if (matches.length == 1 && bills.isEmpty) {
         widget.onSelect(matches.single);
+        return KeyEventResult.handled;
+      }
+      if (bills.length == 1 && matches.isEmpty) {
+        widget.onOpenBill(bills.single);
         return KeyEventResult.handled;
       }
     }
@@ -143,7 +167,7 @@ class _CustomerSearchSectionState extends State<CustomerSearchSection> {
             children: [
               Expanded(
                 child: Text(
-                  widget.strings.get('searchCustomers'),
+                  context.l10n.dashSearchCustomersOrBills,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w700,
@@ -176,7 +200,7 @@ class _CustomerSearchSectionState extends State<CustomerSearchSection> {
                   minWidth: 40,
                   minHeight: 44,
                 ),
-                hintText: widget.strings.get('searchHint'),
+                hintText: context.l10n.dashSearchCustomersOrBillsHint,
                 prefixIcon: const Icon(Icons.search_rounded, size: 20),
                 suffixIcon: controller.text.isEmpty
                     ? null
@@ -225,7 +249,8 @@ class _CustomerSearchSectionState extends State<CustomerSearchSection> {
           if (!loading &&
               error == null &&
               controller.text.trim().isNotEmpty &&
-              matches.isEmpty)
+              matches.isEmpty &&
+              bills.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Row(
@@ -280,6 +305,34 @@ class _CustomerSearchSectionState extends State<CustomerSearchSection> {
                 },
               ),
             ),
+          if (bills.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              context.l10n.dashBills,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            for (var index = 0; index < bills.length; index++)
+              ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                selected: activeIndex == matches.length + index,
+                selectedTileColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: .10),
+                onTap: () => widget.onOpenBill(bills[index]),
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: Text(
+                  '${bills[index]['bill_number'] ?? bills[index]['number'] ?? ''} · ${bills[index]['customer_name'] ?? bills[index]['name'] ?? ''}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(widget.strings.get('${bills[index]['status']}')),
+                trailing: StatusChip(
+                  label: widget.strings.get('${bills[index]['status']}'),
+                  tone: toneForStatus('${bills[index]['status']}'),
+                ),
+              ),
+          ],
         ],
       ),
     ),

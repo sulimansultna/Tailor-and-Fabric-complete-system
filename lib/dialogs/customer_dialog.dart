@@ -92,7 +92,7 @@ Future<bool> showCustomerDialog(
               customer == null ? l10n.addCustomerTitle : l10n.editCustomer,
             ),
             content: SizedBox(
-              width: 540,
+              width: fitContentWidth(dialogContext, 540),
               child: Form(
                 key: form,
                 child: SingleChildScrollView(
