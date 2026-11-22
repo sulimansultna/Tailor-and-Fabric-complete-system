@@ -14,7 +14,9 @@ import '../../l10n/generated/app_localizations.dart';
 import '../../widgets/responsive_list_page.dart';
 import '../../widgets/horizontal_table.dart';
 import '../../widgets/responsive_layout.dart';
+import '../dashboard/widgets/premium_illustration.dart';
 import '../workers/workers_screen.dart';
+import 'expense_visuals.dart';
 
 String _methodLabel(AppLocalizations l10n, String method) => switch (method) {
   'Cash' => l10n.cash,
@@ -172,7 +174,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         builder: (ctx, refresh) => AlertDialog(
           title: Text(_l10n.expenseCategories),
           content: SizedBox(
-            width: 430,
+            width: fitContentWidth(ctx, 430),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -182,7 +184,16 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                     children: _categories
                         .map(
                           (category) => ListTile(
-                            title: Text('${category['name']}'),
+                            leading: ExpenseIconBadge(
+                              name: '${category['name']}',
+                              size: 40,
+                            ),
+                            title: Text(
+                              expenseCategoryLabel(
+                                context,
+                                '${category['name']}',
+                              ),
+                            ),
                             trailing: PopupMenuButton<String>(
                               onSelected: (action) async {
                                 if (action == 'rename') {
@@ -311,16 +322,20 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         builder: (ctx) => AlertDialog(
           title: Text(_l10n.expenseTemplates),
           content: SizedBox(
-            width: 470,
+            width: fitContentWidth(ctx, 470),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (templates.isEmpty) Text(_l10n.noTemplates),
                 ...templates.map(
                   (template) => ListTile(
+                    leading: ExpenseIconBadge(
+                      name: '${template['category']}',
+                      size: 40,
+                    ),
                     title: Text('${template['name']}'),
                     subtitle: Text(
-                      '${template['category']} · ${template['suggested_amount'] == 0 ? _l10n.noSuggestedAmount : formatMoney(template['suggested_amount'] as int)}',
+                      '${expenseCategoryLabel(context, '${template['category']}')} · ${template['suggested_amount'] == 0 ? _l10n.noSuggestedAmount : formatMoney(template['suggested_amount'] as int)}',
                     ),
                     trailing: Wrap(
                       spacing: 4,
@@ -394,7 +409,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             builder: (ctx, refresh) => AlertDialog(
               title: Text(_l10n.newTemplate),
               content: SizedBox(
-                width: 420,
+                width: fitContentWidth(ctx, 420),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -412,7 +427,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           .map(
                             (c) => DropdownMenuItem(
                               value: c['name'] as String,
-                              child: Text('${c['name']}'),
+                              child: Text(
+                                expenseCategoryLabel(context, '${c['name']}'),
+                              ),
                             ),
                           )
                           .toList(),
@@ -470,7 +487,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       builder: (ctx) => AlertDialog(
         title: Text(_l10n.reverseExpense),
         content: SizedBox(
-          width: 420,
+          width: fitContentWidth(ctx, 420),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -608,366 +625,543 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     ], mode: ProcessStartMode.detached);
   }
 
-  Widget _metric(String title, int amount, IconData icon) => Card(
-    elevation: 0,
-    color: Theme.of(context).colorScheme.surface,
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-            child: Icon(icon, color: Theme.of(context).colorScheme.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  formatMoney(amount),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+  bool _hasLeader(String leader) {
+    final trimmed = leader.trim();
+    return trimmed.isNotEmpty && trimmed != '—' && trimmed != 'â€”';
+  }
+
+  Widget _toolButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+    required bool iconOnly,
+  }) {
+    if (iconOnly) {
+      return IconButton.filledTonal(
+        tooltip: label,
+        onPressed: onPressed,
+        style: IconButton.styleFrom(foregroundColor: color),
+        icon: Icon(icon),
+      );
+    }
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: color,
+        side: BorderSide(color: color.withValues(alpha: .4)),
       ),
-    ),
-  );
+      icon: Icon(icon),
+      label: Text(label),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = _l10n;
-    final locale = Localizations.localeOf(context).languageCode;
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    final compact = MediaQuery.sizeOf(context).width < 760;
+    final pagePad = compact ? 16.0 : 24.0;
     final filteredTotal = _rows
         .where((row) => row['status'] == 'Posted')
         .fold<int>(0, (sum, row) => sum + (row['amount'] as int));
-    return CommandScope(commands: _keyboardCommands(), builder: (context) => Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: SegmentedButton<bool>(
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment<bool>(
-                    value: false,
-                    icon: const Icon(Icons.receipt_long_outlined),
-                    label: Text(l10n.expenses),
-                  ),
-                  ButtonSegment<bool>(
-                    value: true,
-                    icon: const Icon(Icons.groups_outlined),
-                    label: Text(l10n.workers),
-                  ),
-                ],
-                selected: {_showWorkers},
-                onSelectionChanged: (selection) {
-                  setState(() => _showWorkers = selection.first);
-                },
-              ),
-            ),
-          ),
-          Expanded(
-            child: _showWorkers
-                ? WorkersScreen(database: widget.database)
-                : Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: ResponsiveListPage(
-                      header: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: 280,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    l10n.expensesTitle,
-                                    style: const TextStyle(
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(l10n.expensesDescription),
-                                ],
-                              ),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: _manageCategories,
-                              icon: const Icon(Icons.category_outlined),
-                              label: Text(l10n.expenseCategories),
-                            ),
-                            const SizedBox(width: 8),
-                            OutlinedButton.icon(
-                              onPressed: _manageTemplates,
-                              icon: const Icon(Icons.bookmarks_outlined),
-                              label: Text(l10n.expenseTemplates),
-                            ),
-                            const SizedBox(width: 8),
-                            OutlinedButton.icon(
-                              onPressed: _exportCsv,
-                              icon: const Icon(Icons.download_outlined),
-                              label: Text(l10n.exportCsv),
-                            ),
-                            const SizedBox(width: 8),
-                            OutlinedButton.icon(
-                              onPressed: _printReport,
-                              icon: const Icon(Icons.print_outlined),
-                              label: Text(l10n.printReport),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              tooltip: l10n.refresh,
-                              onPressed: () => _load(),
-                              icon: const Icon(Icons.refresh),
-                            ),
-                            CommandButton(register: false, aliases: const ['action.new'], id: 'expenses.add', child: FilledButton.icon(
-                              onPressed: _addExpense,
-                              icon: const Icon(Icons.add),
-                              label: Text(l10n.addExpense),
-                            )),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final metrics = [
-                              (
-                                l10n.expensesToday,
-                                _summary['today'] as int? ?? 0,
-                                Icons.account_balance_wallet_outlined,
-                              ),
-                              (
-                                l10n.thisMonth,
-                                _summary['month_total'] as int? ?? 0,
-                                Icons.today_outlined,
-                              ),
-                              (
-                                _range == null
-                                    ? l10n.selectedMonth
-                                    : l10n.selectedPeriod,
-                                _summary['total'] as int? ?? 0,
-                                Icons.receipt_long_outlined,
-                              ),
-                              (
-                                '${_summary['leader'] ?? '—'} (${_l10n.largestCategory})',
-                                _summary['leader_total'] as int? ?? 0,
-                                Icons.pie_chart_outline,
-                              ),
-                            ];
-                            final columns = ResponsiveLayout.columns(
-                              context,
-                              constraints.maxWidth,
-                              minWidth: 240,
-                              maxColumns: 4,
-                              gap: 10,
-                            );
-                            final width =
-                                (constraints.maxWidth - 10 * (columns - 1)) /
-                                columns;
-                            return Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: [
-                                for (final metric in metrics)
-                                  SizedBox(
-                                    width: width,
-                                    child: _metric(
-                                      metric.$1,
-                                      metric.$2,
-                                      metric.$3,
-                                    ),
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        _filters(),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(4, 6, 8, 10),
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              l10n.filteredPostedTotal(
-                                formatMoney(filteredTotal, locale: locale),
-                              ),
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                      body: _table(locale),
+    final leader = '${_summary['leader'] ?? ''}';
+    final hasLeader = _hasLeader(leader);
+    return CommandScope(
+      commands: _keyboardCommands(),
+      builder: (context) => Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(pagePad, 16, pagePad, 0),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SegmentedButton<bool>(
+                  showSelectedIcon: false,
+                  segments: [
+                    ButtonSegment<bool>(
+                      value: false,
+                      icon: const Icon(Icons.receipt_long_outlined),
+                      label: Text(l10n.expenses),
                     ),
-                  ),
-          ),
-        ],
-      ),
-    ));
-  }
-
-  Widget _filters() => Card(
-    elevation: 0,
-    color: Theme.of(context).colorScheme.surface,
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          SizedBox(
-            width: 260,
-            child: TextField(
-              controller: _search,
-              onSubmitted: (_) => _load(),
-              onChanged: (_) => _load(),
-              decoration: InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: _l10n.searchExpense,
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ),
-          OutlinedButton.icon(
-            onPressed: _pickRange,
-            icon: const Icon(Icons.date_range),
-            label: Text(
-              _range == null ? _l10n.thisMonth : '$_from – $_through',
-            ),
-          ),
-          DropdownButton<int?>(
-            value: _category,
-            hint: Text(_l10n.allCategories),
-            items: [
-              DropdownMenuItem<int?>(
-                value: null,
-                child: Text(_l10n.allCategories),
-              ),
-              ..._categories.map(
-                (c) => DropdownMenuItem<int?>(
-                  value: c['id'] as int,
-                  child: Text('${c['name']}'),
+                    ButtonSegment<bool>(
+                      value: true,
+                      icon: const Icon(Icons.groups_outlined),
+                      label: Text(l10n.workers),
+                    ),
+                  ],
+                  selected: {_showWorkers},
+                  onSelectionChanged: (selection) {
+                    setState(() => _showWorkers = selection.first);
+                  },
+                ),
                 ),
               ),
+            ),
+            Expanded(
+              child: _showWorkers
+                  ? WorkersScreen(database: widget.database)
+                  : Padding(
+                      padding: EdgeInsets.fromLTRB(pagePad, 16, pagePad, pagePad),
+                      child: ResponsiveListPage(
+                        header: [
+                          _header(l10n, compact),
+                          const SizedBox(height: 16),
+                          _summaryCards(l10n, locale, hasLeader ? leader : null),
+                          const SizedBox(height: 14),
+                          _categoryStrip(l10n),
+                          const SizedBox(height: 12),
+                          _filters(),
+                          const SizedBox(height: 10),
+                          _postedTotal(l10n, filteredTotal, locale),
+                          const SizedBox(height: 8),
+                        ],
+                        body: _table(locale),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _header(AppLocalizations l10n, bool compact) {
+    final scheme = Theme.of(context).colorScheme;
+    final title = Row(
+      children: [
+        const PremiumMarkIcon(
+          mark: PremiumMark.expenses,
+          accent: Color(0xff087f8c),
+          size: 52,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.expensesTitle,
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                l10n.expensesDescription,
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
             ],
-            onChanged: (value) {
-              setState(() => _category = value);
+          ),
+        ),
+      ],
+    );
+    final actions = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        _toolButton(
+          icon: Icons.category_rounded,
+          label: l10n.expenseCategories,
+          color: const Color(0xff7c3aed),
+          iconOnly: compact,
+          onPressed: _manageCategories,
+        ),
+        _toolButton(
+          icon: Icons.bookmarks_rounded,
+          label: l10n.expenseTemplates,
+          color: const Color(0xff0f766e),
+          iconOnly: compact,
+          onPressed: _manageTemplates,
+        ),
+        _toolButton(
+          icon: Icons.download_rounded,
+          label: l10n.exportCsv,
+          color: const Color(0xff2563eb),
+          iconOnly: compact,
+          onPressed: _exportCsv,
+        ),
+        _toolButton(
+          icon: Icons.print_rounded,
+          label: l10n.printReport,
+          color: const Color(0xffb45309),
+          iconOnly: compact,
+          onPressed: _printReport,
+        ),
+        IconButton(
+          tooltip: l10n.refresh,
+          onPressed: () => _load(),
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+        CommandButton(
+          register: false,
+          aliases: const ['action.new'],
+          id: 'expenses.add',
+          child: FilledButton.icon(
+            onPressed: _addExpense,
+            icon: const Icon(Icons.add_rounded),
+            label: Text(l10n.addExpense),
+          ),
+        ),
+      ],
+    );
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [title, const SizedBox(height: 12), actions],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: title),
+        const SizedBox(width: 12),
+        Flexible(child: Align(alignment: AlignmentDirectional.topEnd, child: actions)),
+      ],
+    );
+  }
+
+  Widget _summaryCards(AppLocalizations l10n, String locale, String? leader) {
+    final cards = [
+      (
+        l10n.expensesToday,
+        null,
+        _summary['today'] as int? ?? 0,
+        const ExpenseVisual(Icons.today_rounded, Color(0xffea580c)),
+      ),
+      (
+        l10n.thisMonth,
+        null,
+        _summary['month_total'] as int? ?? 0,
+        const ExpenseVisual(Icons.calendar_month_rounded, Color(0xff087f8c)),
+      ),
+      (
+        _range == null ? l10n.selectedMonth : l10n.selectedPeriod,
+        null,
+        _summary['total'] as int? ?? 0,
+        const ExpenseVisual(Icons.receipt_long_rounded, Color(0xff2563eb)),
+      ),
+      (
+        leader == null ? '—' : expenseCategoryLabel(context, leader),
+        l10n.largestCategory,
+        _summary['leader_total'] as int? ?? 0,
+        leader == null
+            ? const ExpenseVisual(Icons.pie_chart_rounded, Color(0xff7c3aed))
+            : expenseVisualFor(leader),
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = ResponsiveLayout.columns(
+          context,
+          constraints.maxWidth,
+          minWidth: 220,
+          maxColumns: 4,
+          gap: 10,
+        );
+        final width = (constraints.maxWidth - 10 * (columns - 1)) / columns;
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final card in cards)
+              SizedBox(
+                width: width,
+                child: ExpenseMetricCard(
+                  label: card.$1,
+                  caption: card.$2,
+                  value: formatMoney(card.$3, locale: locale),
+                  visual: card.$4,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _categoryStrip(AppLocalizations l10n) {
+    if (_categories.isEmpty) return const SizedBox.shrink();
+    final scale = ResponsiveLayout.textFactor(context);
+    return SizedBox(
+      height: 86 * scale,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          ExpenseQuickFilter(
+            label: l10n.allCategories,
+            visual: const ExpenseVisual(
+              Icons.grid_view_rounded,
+              Color(0xff087f8c),
+            ),
+            selected: _category == null,
+            onTap: () {
+              setState(() => _category = null);
               _load();
             },
           ),
-          DropdownButton<String>(
-            value: _method,
-            items: const ['All', 'Cash', 'Bank transfer', 'Card', 'Other']
-                .map(
-                  (m) => DropdownMenuItem(
-                    value: m,
-                    child: Text(
-                      m == 'All' ? _l10n.allMethods : _methodLabel(_l10n, m),
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (v) {
-              if (v != null) {
-                setState(() => _method = v);
+          for (final category in _categories)
+            ExpenseQuickFilter(
+              label: expenseCategoryLabel(context, '${category['name']}'),
+              visual: expenseVisualFor('${category['name']}'),
+              selected: _category == category['id'],
+              onTap: () {
+                setState(() => _category = category['id'] as int);
                 _load();
-              }
-            },
-          ),
-          DropdownButton<String>(
-            value: _status,
-            items: const ['All', 'Posted', 'Reversed', 'Reversal']
-                .map(
-                  (s) => DropdownMenuItem(
-                    value: s,
-                    child: Text(
-                      s == 'All' ? _l10n.allStatuses : _statusLabel(_l10n, s),
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (v) {
-              if (v != null) {
-                setState(() => _status = v);
-                _load();
-              }
-            },
-          ),
-          DropdownButton<String>(
-            value: _sort,
-            items:
-                {
-                      'date DESC,id DESC': _l10n.newest,
-                      'date ASC,id ASC': _l10n.oldest,
-                      'amount DESC,date DESC': _l10n.amountHighToLow,
-                      'amount ASC,date DESC': _l10n.amountLowToHigh,
-                      'category COLLATE NOCASE,date DESC': _l10n.category,
-                    }.entries
-                    .map(
-                      (e) =>
-                          DropdownMenuItem(value: e.key, child: Text(e.value)),
-                    )
-                    .toList(),
-            onChanged: (v) {
-              if (v != null) {
-                setState(() => _sort = v);
-                _load();
-              }
-            },
-          ),
-          TextButton(
-            onPressed: () {
-              _search.clear();
-              setState(() {
-                _range = null;
-                _category = null;
-                _method = 'All';
-                _status = 'All';
-              });
-              _load();
-            },
-            child: Text(_l10n.clearFilters),
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _postedTotal(AppLocalizations l10n, int total, String locale) {
+    const color = Color(0xffc2410c);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.payments_rounded, color: color, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              l10n.filteredPostedTotal(formatMoney(total, locale: locale)),
+              style: const TextStyle(
+                color: color,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _filterField({
+    required double width,
+    required IconData icon,
+    required Widget child,
+    String? label,
+  }) => SizedBox(
+    width: width,
+    child: InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        isDense: true,
+        prefixIcon: Icon(icon, size: 20),
+        contentPadding: const EdgeInsetsDirectional.fromSTEB(0, 4, 8, 4),
+      ),
+      child: DropdownButtonHideUnderline(child: child),
     ),
   );
 
-  Widget _table(String locale) => Card(
-    elevation: 0,
-    color: Theme.of(context).colorScheme.surface,
-    clipBehavior: Clip.antiAlias,
-    child: _loading
-        ? const Center(child: CircularProgressIndicator())
-        : _rows.isEmpty
-        ? Center(child: Text(_l10n.noExpensesForPeriod))
-        : HorizontalTable(
+  Widget _filters() => LayoutBuilder(
+    builder: (context, constraints) {
+      final maxWidth = constraints.maxWidth;
+      double field(double preferred) =>
+          preferred < maxWidth ? preferred : maxWidth;
+      final l10n = _l10n;
+      return Card(
+        elevation: 0,
+        color: Theme.of(context).colorScheme.surface,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(
+                width: field(280),
+                child: TextField(
+                  controller: _search,
+                  onSubmitted: (_) => _load(),
+                  onChanged: (_) => _load(),
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    hintText: l10n.searchExpense,
+                    isDense: true,
+                  ),
+                ),
+              ),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: OutlinedButton.icon(
+                  onPressed: _pickRange,
+                  icon: const Icon(Icons.date_range_rounded),
+                  label: Text(
+                    _range == null ? l10n.thisMonth : '$_from – $_through',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              _filterField(
+                width: field(200),
+                label: l10n.category,
+                icon: Icons.category_rounded,
+                child: DropdownButton<int?>(
+                  isExpanded: true,
+                  value: _category,
+                  items: [
+                    DropdownMenuItem<int?>(
+                      value: null,
+                      child: Text(l10n.allCategories),
+                    ),
+                    ..._categories.map(
+                      (c) => DropdownMenuItem<int?>(
+                        value: c['id'] as int,
+                        child: Text(
+                          expenseCategoryLabel(context, '${c['name']}'),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() => _category = value);
+                    _load();
+                  },
+                ),
+              ),
+              _filterField(
+                width: field(180),
+                label: l10n.method,
+                icon: Icons.payments_rounded,
+                child: DropdownButton<String>(
+                  isExpanded: true,
+                  value: _method,
+                  items: const [
+                    'All',
+                    'Cash',
+                    'Bank transfer',
+                    'Card',
+                    'Other',
+                  ].map((m) {
+                    final label = m == 'All'
+                        ? l10n.allMethods
+                        : _methodLabel(l10n, m);
+                    return DropdownMenuItem(
+                      value: m,
+                      child: Text(label, overflow: TextOverflow.ellipsis),
+                    );
+                  }).toList(),
+                  onChanged: (v) {
+                    if (v != null) {
+                      setState(() => _method = v);
+                      _load();
+                    }
+                  },
+                ),
+              ),
+              _filterField(
+                width: field(170),
+                label: l10n.expenseStatus,
+                icon: Icons.flag_rounded,
+                child: DropdownButton<String>(
+                  isExpanded: true,
+                  value: _status,
+                  items: const ['All', 'Posted', 'Reversed', 'Reversal']
+                      .map(
+                        (s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(
+                            s == 'All'
+                                ? l10n.allStatuses
+                                : _statusLabel(l10n, s),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) {
+                      setState(() => _status = v);
+                      _load();
+                    }
+                  },
+                ),
+              ),
+              _filterField(
+                width: field(190),
+                icon: Icons.sort_rounded,
+                child: DropdownButton<String>(
+                  isExpanded: true,
+                  value: _sort,
+                  items:
+                      {
+                            'date DESC,id DESC': l10n.newest,
+                            'date ASC,id ASC': l10n.oldest,
+                            'amount DESC,date DESC': l10n.amountHighToLow,
+                            'amount ASC,date DESC': l10n.amountLowToHigh,
+                            'category COLLATE NOCASE,date DESC': l10n.category,
+                          }.entries
+                          .map(
+                            (e) => DropdownMenuItem(
+                              value: e.key,
+                              child: Text(
+                                e.value,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (v) {
+                    if (v != null) {
+                      setState(() => _sort = v);
+                      _load();
+                    }
+                  },
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  _search.clear();
+                  setState(() {
+                    _range = null;
+                    _category = null;
+                    _method = 'All';
+                    _status = 'All';
+                  });
+                  _load();
+                },
+                icon: const Icon(Icons.filter_alt_off_rounded),
+                label: Text(l10n.clearFilters),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+
+  Widget _table(String locale) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_rows.isEmpty) return _emptyExpenses();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 860) {
+          return ListView.separated(
+            padding: const EdgeInsets.only(bottom: 12),
+            itemCount: _rows.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, index) => _expenseCard(_rows[index], locale),
+          );
+        }
+        return Card(
+          elevation: 0,
+          color: Theme.of(context).colorScheme.surface,
+          clipBehavior: Clip.antiAlias,
+          child: HorizontalTable(
             child: SingleChildScrollView(
               child: DataTable(
                 columns: [
@@ -984,7 +1178,192 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+
+  Widget _emptyExpenses() {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ExpenseIconBadge(
+              visual: ExpenseVisual(Icons.receipt_long_rounded, Color(0xff087f8c)),
+              size: 64,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              _l10n.noExpensesForPeriod,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: _addExpense,
+              icon: const Icon(Icons.add_rounded),
+              label: Text(_l10n.addExpense),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statusPill(String status) {
+    final color = expenseStatusColor(status, Theme.of(context).colorScheme);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        _statusLabel(_l10n, status),
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _rowMenu(Map<String, Object?> row) => PopupMenuButton<String>(
+    tooltip: _l10n.viewDetails,
+    onSelected: (value) {
+      if (value == 'reverse') _reverse(row);
+      if (value == 'details') _showDetails(row);
+    },
+    itemBuilder: (ctx) => [
+      PopupMenuItem(
+        value: 'details',
+        child: Row(
+          children: [
+            const Icon(Icons.visibility_outlined, size: 18),
+            const SizedBox(width: 8),
+            Text(_l10n.viewDetails),
+          ],
+        ),
+      ),
+      if (row['status'] == 'Posted')
+        PopupMenuItem(
+          value: 'reverse',
+          child: Row(
+            children: [
+              Icon(Icons.undo_rounded, size: 18, color: Theme.of(ctx).colorScheme.error),
+              const SizedBox(width: 8),
+              Text(_l10n.reverseExpense),
+            ],
+          ),
+        ),
+    ],
+    child: const Icon(Icons.more_horiz),
   );
+
+  Widget _expenseCard(Map<String, Object?> row, String locale) {
+    final scheme = Theme.of(context).colorScheme;
+    final category = '${row['category']}';
+    final categoryLabel = expenseCategoryLabel(context, category);
+    final visual = expenseVisualFor(category);
+    final payee = row['payee'] as String? ?? '';
+    final status = '${row['status']}';
+    final selected =
+        AppCommandRegistry.maybeOf(context)?.selected('expense')?['id'] ==
+        row['id'];
+    return Card(
+      elevation: 0,
+      color: selected ? visual.color.withValues(alpha: .08) : scheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: selected ? visual.color : scheme.outlineVariant,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          AppCommandRegistry.maybeOf(context)?.select('expense', row);
+          _showDetails(row);
+        },
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 4, 10),
+          child: Row(
+            children: [
+              ExpenseIconBadge(visual: visual, size: 44),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${row['description']}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$categoryLabel · ${_methodLabel(_l10n, '${row['method']}')}${payee.isEmpty ? '' : ' · $payee'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          formatDate('${row['date']}', locale: locale),
+                          textDirection: TextDirection.ltr,
+                          style: TextStyle(
+                            color: scheme.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                        _statusPill(status),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    formatMoney(row['amount'] as int, locale: locale),
+                    textDirection: TextDirection.ltr,
+                    style: const TextStyle(
+                      color: Color(0xffc2410c),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    '${row['expense_no'] ?? '—'}',
+                    textDirection: TextDirection.ltr,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+              _rowMenu(row),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   DataRow _dataRow(Map<String, Object?> row) => DataRow(
     selected: AppCommandRegistry.maybeOf(context)?.selected('expense')?['id'] == row['id'],
@@ -999,7 +1378,23 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           ),
         ),
       ),
-      DataCell(Text('${row['category']}')),
+      DataCell(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ExpenseIconBadge(name: '${row['category']}', size: 32),
+            const SizedBox(width: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 160),
+              child: Text(
+                expenseCategoryLabel(context, '${row['category']}'),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
       DataCell(
         SizedBox(
           width: 230,
@@ -1021,85 +1416,145 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           ),
         ),
       ),
-      DataCell(Text(_methodLabel(_l10n, '${row['method']}'))),
+      DataCell(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              paymentVisual('${row['method']}').icon,
+              size: 16,
+              color: paymentVisual('${row['method']}').color,
+            ),
+            const SizedBox(width: 6),
+            Text(_methodLabel(_l10n, '${row['method']}')),
+          ],
+        ),
+      ),
       DataCell(
         Text(
           formatMoney(row['amount'] as int),
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-      ),
-      DataCell(
-        Chip(
-          label: Text(_statusLabel(_l10n, '${row['status']}')),
-          visualDensity: VisualDensity.compact,
-          backgroundColor: row['status'] == 'Posted'
-              ? Theme.of(context).colorScheme.secondaryContainer
-              : Theme.of(context).colorScheme.surfaceContainerHigh,
-        ),
-      ),
-      DataCell(
-        PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'reverse') _reverse(row);
-            if (value == 'details') _showDetails(row);
-          },
-          itemBuilder: (ctx) => [
-            PopupMenuItem(value: 'details', child: Text(_l10n.viewDetails)),
-            if (row['status'] == 'Posted')
-              PopupMenuItem(
-                value: 'reverse',
-                child: Text(_l10n.reverseExpense),
-              ),
-          ],
-          child: const Icon(Icons.more_horiz),
-        ),
-      ),
-    ],
-  );
-
-  void _showDetails(Map<String, Object?> row) => showDialog<void>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text('${row['expense_no']}'),
-      content: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${_l10n.expenseCategory('${row['category']}')}\n'
-                '${_l10n.expenseDate(formatDate('${row['date']}'))}\n'
-                '${_l10n.recordedAt(formatDate('${row['recorded_at']}'))}\n'
-                '${_l10n.expenseDescriptionField('${row['description']}')}\n'
-                '${_l10n.payee}: ${row['payee']}\n'
-                '${_l10n.reference}: ${row['reference']}\n'
-                '${_l10n.paymentMethod}: ${_methodLabel(_l10n, '${row['method']}')}\n'
-                '${_l10n.amount}: ${formatMoney(row['amount'] as int)}\n'
-                '${_l10n.expenseStatus}: ${_statusLabel(_l10n, '${row['status']}')}\n'
-                '${_l10n.notes}: ${row['notes']}\n'
-                '${_l10n.receipt}: ${row['receipt_name'] ?? _l10n.none}',
-              ),
-              if (row['receipt_bytes'] is Uint8List) ...[
-                const SizedBox(height: 12),
-                Image.memory(
-                  row['receipt_bytes'] as Uint8List,
-                  height: 200,
-                  fit: BoxFit.contain,
-                ),
-              ],
-            ],
+          textDirection: TextDirection.ltr,
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Color(0xffc2410c),
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: Text(_l10n.close),
-        ),
-      ],
-    ),
+      DataCell(_statusPill('${row['status']}')),
+      DataCell(_rowMenu(row)),
+    ],
   );
+
+  void _showDetails(Map<String, Object?> row) {
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    final category = '${row['category']}';
+    final visual = expenseVisualFor(category);
+    final lines = <(IconData, Color, String)>[
+      (
+        visual.icon,
+        visual.color,
+        _l10n.expenseCategory(expenseCategoryLabel(context, category)),
+      ),
+      (
+        Icons.calendar_today_rounded,
+        const Color(0xff087f8c),
+        _l10n.expenseDate(formatDate('${row['date']}', locale: locale)),
+      ),
+      (
+        Icons.schedule_rounded,
+        const Color(0xff64748b),
+        _l10n.recordedAt(formatDate('${row['recorded_at']}', locale: locale)),
+      ),
+      (
+        Icons.notes_rounded,
+        const Color(0xff2563eb),
+        _l10n.expenseDescriptionField('${row['description']}'),
+      ),
+      (Icons.person_rounded, const Color(0xff7c3aed), '${_l10n.payee}: ${row['payee']}'),
+      (
+        Icons.tag_rounded,
+        const Color(0xff0f766e),
+        '${_l10n.reference}: ${row['reference']}',
+      ),
+      (
+        paymentVisual('${row['method']}').icon,
+        paymentVisual('${row['method']}').color,
+        '${_l10n.paymentMethod}: ${_methodLabel(_l10n, '${row['method']}')}',
+      ),
+      (
+        Icons.payments_rounded,
+        const Color(0xffc2410c),
+        '${_l10n.amount}: ${formatMoney(row['amount'] as int, locale: locale)}',
+      ),
+      (
+        Icons.flag_rounded,
+        expenseStatusColor('${row['status']}', Theme.of(context).colorScheme),
+        '${_l10n.expenseStatus}: ${_statusLabel(_l10n, '${row['status']}')}',
+      ),
+      (Icons.sticky_note_2_rounded, const Color(0xffb45309), '${_l10n.notes}: ${row['notes']}'),
+      (
+        Icons.attach_file_rounded,
+        const Color(0xff475569),
+        '${_l10n.receipt}: ${row['receipt_name'] ?? _l10n.none}',
+      ),
+    ];
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            ExpenseIconBadge(visual: visual, size: 40),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '${row['expense_no']}',
+                textDirection: TextDirection.ltr,
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: fitContentWidth(ctx, 460),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final line in lines)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(line.$1, color: line.$2, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(line.$3)),
+                      ],
+                    ),
+                  ),
+                if (row['receipt_bytes'] is Uint8List) ...[
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.memory(
+                      row['receipt_bytes'] as Uint8List,
+                      height: 200,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(_l10n.close),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ExpenseForm extends StatefulWidget {
@@ -1267,67 +1722,118 @@ class _ExpenseFormState extends State<_ExpenseForm> {
   Widget build(BuildContext context) {
     final bounds = ResponsiveLayout.dialogSize(
       context,
-      maxWidth: 720,
+      maxWidth: 760,
       inset: 16,
     );
+    final scheme = Theme.of(context).colorScheme;
+    final locale = Localizations.localeOf(context).toLanguageTag();
     return Dialog(
-    child: ConstrainedBox(
-      constraints: BoxConstraints(
-        maxWidth: bounds.width,
-        maxHeight: bounds.height,
-      ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _form,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _l10n.addExpense,
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 6),
-              Text(_l10n.addExpenseDescription),
-              const SizedBox(height: 22),
-              Wrap(
-                spacing: 14,
-                runSpacing: 14,
-                children: [
-                  AdaptiveWidth(
-                    width: 320,
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _category,
-                      decoration: InputDecoration(
-                        labelText: _l10n.categoryRequired,
-                        border: OutlineInputBorder(),
-                      ),
-                      items: _categories
-                          .map(
-                            (c) => DropdownMenuItem(value: c, child: Text(c)),
-                          )
-                          .toList(),
-                      onChanged: (v) => setState(() => _category = v),
-                      validator: (v) => v == null ? _l10n.chooseCategory : null,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: bounds.width,
+          maxHeight: bounds.height,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Form(
+            key: _form,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ExpenseIconBadge(
+                      visual: expenseVisualFor(_category),
+                      size: 48,
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _l10n.addExpense,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _l10n.addExpenseDescription,
+                            style: TextStyle(color: scheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                FormField<String>(
+                  initialValue: _category,
+                  validator: (_) =>
+                      _category == null ? _l10n.chooseCategory : null,
+                  builder: (field) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _l10n.categoryRequired,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          for (final name in _categories)
+                            ExpenseChoice(
+                              label: expenseCategoryLabel(context, name),
+                              visual: expenseVisualFor(name),
+                              selected: _category == name,
+                              expandLabel: true,
+                              onTap: () {
+                                setState(() => _category = name);
+                                field.didChange(name);
+                              },
+                            ),
+                          TextButton.icon(
+                            onPressed: _newCategory,
+                            icon: const Icon(Icons.add_rounded),
+                            label: Text(_l10n.addCategory),
+                          ),
+                        ],
+                      ),
+                      if (field.hasError)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            field.errorText!,
+                            style: TextStyle(color: scheme.error),
+                          ),
+                        ),
+                    ],
                   ),
-                  TextButton.icon(
-                    onPressed: _newCategory,
-                    icon: const Icon(Icons.add),
-                    label: Text(_l10n.addCategory),
-                  ),
-                  AdaptiveWidth(
-                    width: 320,
-                    child: TextFormField(
+                ),
+                const SizedBox(height: 16),
+                ResponsiveFormColumns(
+                  minColumnWidth: 260,
+                  children: [
+                    TextFormField(
                       controller: _amount,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
                       decoration: InputDecoration(
                         labelText: _l10n.amountRequired,
+                        prefixIcon: const Icon(Icons.payments_rounded),
                         prefixText: 'AFN ',
-                        border: OutlineInputBorder(),
                       ),
                       validator: (v) {
                         final amount = parseMoneyMinor(v ?? '');
@@ -1337,138 +1843,161 @@ class _ExpenseFormState extends State<_ExpenseForm> {
                       },
                       autofocus: true,
                     ),
-                  ),
-                  AdaptiveWidth(
-                    width: 320,
-                    child: TextFormField(
+                    TextFormField(
                       controller: _description,
                       decoration: InputDecoration(
                         labelText: _l10n.descriptionField,
-                        border: OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.notes_rounded),
                       ),
                       validator: (v) => v == null || v.trim().isEmpty
                           ? _l10n.descriptionRequired
                           : null,
                     ),
-                  ),
-                  AdaptiveWidth(
-                    width: 320,
-                    child: TextFormField(
+                  ],
+                ),
+                const SizedBox(height: 14),
+                ResponsiveFormColumns(
+                  minColumnWidth: 260,
+                  children: [
+                    TextFormField(
                       controller: _payee,
                       decoration: InputDecoration(
                         labelText: _l10n.payeeOptional,
-                        border: OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.person_rounded),
                       ),
                     ),
-                  ),
-                  AdaptiveWidth(
-                    width: 320,
-                    child: TextFormField(
+                    TextFormField(
                       controller: _reference,
                       decoration: InputDecoration(
                         labelText: _l10n.referenceOptional,
-                        border: OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.tag_rounded),
                       ),
                     ),
-                  ),
-                  AdaptiveWidth(
-                    width: 320,
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _method,
-                      decoration: InputDecoration(
-                        labelText: _l10n.paymentMethod,
-                        border: OutlineInputBorder(),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _l10n.paymentMethod,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final method in const [
+                      'Cash',
+                      'Bank transfer',
+                      'Card',
+                      'Other',
+                    ])
+                      ExpenseChoice(
+                        label: _methodLabel(_l10n, method),
+                        visual: paymentVisual(method),
+                        selected: _method == method,
+                        onTap: () => setState(() => _method = method),
                       ),
-                      items: const ['Cash', 'Bank transfer', 'Card', 'Other']
-                          .map(
-                            (m) => DropdownMenuItem(
-                              value: m,
-                              child: Text(_methodLabel(_l10n, m)),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setState(() => _method = v ?? 'Cash'),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () async {
+                    final d = await showAppDatePicker(
+                      context: context,
+                      initialDate: _date,
+                      firstDate: DateTime(2000),
+                      lastDate: CalendarService.shopToday(),
+                    );
+                    if (d != null) setState(() => _date = d);
+                  },
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: _l10n.expenseDateLabel,
+                      prefixIcon: const Icon(Icons.calendar_month_rounded),
+                    ),
+                    child: Text(
+                      formatDate(_date.toIso8601String(), locale: locale),
+                      textDirection: TextDirection.ltr,
                     ),
                   ),
-                  AdaptiveWidth(
-                    width: 320,
-                    child: InkWell(
-                      onTap: () async {
-                        final d = await showAppDatePicker(
-                          context: context,
-                          initialDate: _date,
-                          firstDate: DateTime(2000),
-                          lastDate: CalendarService.shopToday(),
-                        );
-                        if (d != null) setState(() => _date = d);
-                      },
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: _l10n.expenseDateLabel,
-                          border: OutlineInputBorder(),
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _notes,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: _l10n.notesOptional,
+                    prefixIcon: const Icon(Icons.sticky_note_2_outlined),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _pickReceipt,
+                      icon: const Icon(Icons.attach_file_rounded),
+                      label: Text(_receiptName ?? _l10n.attachReceipt),
+                    ),
+                    if (_receiptBytes != null) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.memory(
+                          _receiptBytes!,
+                          width: 120,
+                          height: 80,
+                          fit: BoxFit.cover,
                         ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.calendar_today_outlined, size: 18),
-                            const SizedBox(width: 10),
-                            Text(formatDate(_date.toIso8601String())),
-                          ],
-                        ),
+                      ),
+                      IconButton(
+                        tooltip: _l10n.clear,
+                        onPressed: () => setState(() {
+                          _receiptName = null;
+                          _receiptBytes = null;
+                        }),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    CommandButton(
+                      id: 'action.cancel',
+                      child: TextButton(
+                        onPressed: _saving
+                            ? null
+                            : () => Navigator.pop(context, false),
+                        child: Text(_l10n.cancel),
                       ),
                     ),
-                  ),
-                  AdaptiveWidth(
-                    width: 654,
-                    child: TextFormField(
-                      controller: _notes,
-                      maxLines: 2,
-                      decoration: InputDecoration(
-                        labelText: _l10n.notesOptional,
-                        border: OutlineInputBorder(),
+                    OutlinedButton(
+                      onPressed: _saving ? null : () => _save(close: false),
+                      child: Text(_l10n.saveAndAddAnother),
+                    ),
+                    CommandButton(
+                      id: 'action.save',
+                      child: FilledButton.icon(
+                        onPressed: _saving ? null : () => _save(),
+                        icon: _saving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.check_rounded),
+                        label: Text(_l10n.saveExpense),
                       ),
                     ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _pickReceipt,
-                    icon: const Icon(Icons.attach_file),
-                    label: Text(_receiptName ?? _l10n.attachReceipt),
-                  ),
-                  if (_receiptBytes != null)
-                    SizedBox(
-                      width: 180,
-                      height: 100,
-                      child: Image.memory(_receiptBytes!, fit: BoxFit.contain),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  CommandButton(id: 'action.cancel', child: TextButton(
-                    onPressed: _saving
-                        ? null
-                        : () => Navigator.pop(context, false),
-                    child: Text(_l10n.cancel),
-                  )),
-                  const SizedBox(width: 8),
-                  OutlinedButton(
-                    onPressed: _saving ? null : () => _save(close: false),
-                    child: Text(_l10n.saveAndAddAnother),
-                  ),
-                  const SizedBox(width: 8),
-                  CommandButton(id: 'action.save', child: FilledButton(
-                    onPressed: _saving ? null : () => _save(),
-                    child: _saving
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(_l10n.saveExpense),
-                  )),
-                ],
-              ),
+                  ],
+                ),
             ],
           ),
         ),

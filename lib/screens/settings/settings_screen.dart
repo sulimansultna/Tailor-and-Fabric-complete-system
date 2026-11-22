@@ -169,31 +169,54 @@ class _SettingsPageState extends State<SettingsScreen> {
         final themeController = ThemeControllerScope.of(context);
         return CommandScope(commands: _keyboardCommands(), builder: (context) => LayoutBuilder(
           builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 940;
             return Scrollbar(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.symmetric(
+                  horizontal: constraints.maxWidth < 600 ? 12 : 24,
+                  vertical: 16,
+                ),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1440),
+                    constraints: const BoxConstraints(maxWidth: 760),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: const Color(0xff0f766e).withValues(
+                                  alpha: .12,
+                                ),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Icon(
+                                Icons.settings_rounded,
+                                color: Color(0xff0f766e),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     l10n.settings,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: Theme.of(context)
                                         .textTheme
-                                        .headlineMedium,
+                                        .headlineSmall
+                                        ?.copyWith(fontWeight: FontWeight.w800),
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(l10n.settingsPageSubtitle),
+                                  Text(
+                                    l10n.settingsPageSubtitle,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
                                 ],
                               ),
                             ),
@@ -206,35 +229,45 @@ class _SettingsPageState extends State<SettingsScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 22),
-                        _sectionPair(
-                          context,
-                          wide,
-                          _accountSection(context, l10n),
-                          KeyedSubtree(key: _profileKey, child: _shopProfileSection(context, settings, l10n)),
+                        const SizedBox(height: 16),
+                        _accountSection(context, l10n),
+                        const SizedBox(height: 12),
+                        KeyedSubtree(
+                          key: _profileKey,
+                          child: _shopProfileSection(context, settings, l10n),
                         ),
-                        const SizedBox(height: 18),
-                        _sectionPair(
-                          context,
-                          wide,
-                          KeyedSubtree(key: _themeKey, child: _appearanceSection(context, themeController, l10n)),
-                          KeyedSubtree(key: _languageKey, child: _languageCalendarSection(
+                        const SizedBox(height: 12),
+                        KeyedSubtree(
+                          key: _themeKey,
+                          child: _appearanceSection(
+                            context,
+                            themeController,
+                            l10n,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        KeyedSubtree(
+                          key: _languageKey,
+                          child: _languageCalendarSection(
                             context,
                             calendarController,
                             l10n,
-                          )),
+                          ),
                         ),
-                        const SizedBox(height: 18),
-                        _sectionPair(
-                          context,
-                          wide,
-                          _paymentsSection(context, settings, l10n),
-                          _applicationInfoSection(context, l10n),
+                        const SizedBox(height: 12),
+                        _paymentsSection(context, settings, l10n),
+                        const SizedBox(height: 12),
+                        _applicationInfoSection(context, l10n),
+                        const SizedBox(height: 12),
+                        KeyedSubtree(
+                          key: _printingKey,
+                          child: _orderPrintingSection(context, settings, l10n),
                         ),
-                        const SizedBox(height: 18),
-                        KeyedSubtree(key: _printingKey, child: _orderPrintingSection(context, settings, l10n)),
-                        const SizedBox(height: 18),
-                        KeyedSubtree(key: _backupKey, child: _backupRestoreCard(context, l10n)),
+                        const SizedBox(height: 12),
+                        KeyedSubtree(
+                          key: _backupKey,
+                          child: _backupRestoreCard(context, l10n),
+                        ),
                       ],
                     ),
                   ),
@@ -247,36 +280,16 @@ class _SettingsPageState extends State<SettingsScreen> {
     );
   }
 
-  Widget _sectionPair(
-    BuildContext context,
-    bool wide,
-    Widget first,
-    Widget second,
-  ) {
-    if (!wide) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [first, const SizedBox(height: 18), second],
-      );
-    }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: first),
-        const SizedBox(width: 18),
-        Expanded(child: second),
-      ],
-    );
-  }
-
   Widget _accountSection(BuildContext context, AppLocalizations l10n) =>
       _SettingsSection(
-        icon: Icons.shield_outlined,
+        icon: Icons.shield_rounded,
+        color: const Color(0xff4f46e5),
         title: l10n.settingsAccountSecurity,
         description: l10n.settingsAccountSecurityDescription,
         child: _settingsRow(
           context,
-          icon: Icons.person_outline,
+          icon: Icons.person_rounded,
+          color: const Color(0xff4f46e5),
           title: authText(context, 'username'),
           value: widget.authController.username,
           onTap: () => Navigator.of(context).push(
@@ -297,57 +310,76 @@ class _SettingsPageState extends State<SettingsScreen> {
     final phone = (settings['phone'] as String? ?? '').trim();
     final owner = (settings['owner_name'] as String? ?? '').trim();
     final address = (settings['address'] as String? ?? '').trim();
-    final details = [
-      owner,
-      phone,
-      address,
-    ].where((value) => value.isNotEmpty).join(' · ');
+    String shown(String value) => value.isEmpty ? '—' : value;
     return _SettingsSection(
-      icon: Icons.storefront_outlined,
+      icon: Icons.storefront_rounded,
+      color: const Color(0xff0f766e),
       title: l10n.settingsShopProfileSection,
       description: l10n.settingsShopProfileDescription,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ShopLogo(path: settings['shop_logo_path'] as String?, size: 56),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      shopName.isEmpty ? l10n.shopName : shopName,
-                      maxLines: 3,
-                      softWrap: true,
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                ShopLogo(path: settings['shop_logo_path'] as String?, size: 52),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    shown(shopName),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
-                    if (details.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(details, softWrap: true),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: OutlinedButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ShopProfileScreen(
-                    database: widget.database,
-                    onShopNameChanged: widget.onShopNameChanged,
                   ),
                 ),
+              ],
+            ),
+          ),
+          _settingsRow(
+            context,
+            icon: Icons.store_rounded,
+            color: const Color(0xff0f766e),
+            title: l10n.shopName,
+            value: shown(shopName),
+          ),
+          _settingsRow(
+            context,
+            icon: Icons.person_rounded,
+            color: const Color(0xff0f766e),
+            title: l10n.ownerName,
+            value: shown(owner),
+          ),
+          _settingsRow(
+            context,
+            icon: Icons.phone_rounded,
+            color: const Color(0xff0f766e),
+            title: l10n.reportFieldPhone,
+            value: shown(phone),
+            valueLtr: true,
+          ),
+          _settingsRow(
+            context,
+            icon: Icons.location_on_rounded,
+            color: const Color(0xff0f766e),
+            title: l10n.address,
+            value: shown(address),
+          ),
+          _settingsRow(
+            context,
+            icon: Icons.edit_rounded,
+            color: const Color(0xff0f766e),
+            title: l10n.settingsEditShopProfile,
+            value: '',
+            showDivider: false,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ShopProfileScreen(
+                  database: widget.database,
+                  onShopNameChanged: widget.onShopNameChanged,
+                ),
               ),
-              icon: const Icon(Icons.edit_outlined),
-              label: Text(l10n.settingsEditShopProfile),
             ),
           ),
         ],
@@ -360,7 +392,8 @@ class _SettingsPageState extends State<SettingsScreen> {
     ThemeController controller,
     AppLocalizations l10n,
   ) => _SettingsSection(
-    icon: Icons.palette_outlined,
+    icon: Icons.palette_rounded,
+    color: const Color(0xffd97706),
     title: l10n.settingsAppearance,
     description: l10n.settingsAppearanceDescription,
     child: Column(
@@ -403,7 +436,8 @@ class _SettingsPageState extends State<SettingsScreen> {
     LocaleController controller,
     AppLocalizations l10n,
   ) => _SettingsSection(
-    icon: Icons.language_outlined,
+    icon: Icons.language_rounded,
+    color: const Color(0xff2563eb),
     title: l10n.settingsLanguageCalendar,
     description: l10n.settingsLanguageCalendarDescription,
     child: Column(
@@ -420,14 +454,16 @@ class _SettingsPageState extends State<SettingsScreen> {
     Map<String, Object?> settings,
     AppLocalizations l10n,
   ) => _SettingsSection(
-    icon: Icons.payments_outlined,
+    icon: Icons.payments_rounded,
+    color: const Color(0xff15803d),
     title: l10n.settingsPaymentsReceipts,
     description: l10n.settingsPaymentsReceiptsDescription,
     child: Column(
       children: [
         _settingsRow(
           context,
-          icon: Icons.payments_outlined,
+          icon: Icons.payments_rounded,
+          color: const Color(0xff15803d),
           title: l10n.settingsPaymentMethods,
           value:
               (settings['payment_methods'] as String?) ??
@@ -437,7 +473,8 @@ class _SettingsPageState extends State<SettingsScreen> {
         ),
         _settingsRow(
           context,
-          icon: Icons.receipt_long_outlined,
+          icon: Icons.receipt_long_rounded,
+          color: const Color(0xff15803d),
           title: l10n.receiptFooter,
           value:
               (settings['receipt_footer'] as String?)?.trim().isNotEmpty == true
@@ -447,7 +484,8 @@ class _SettingsPageState extends State<SettingsScreen> {
         ),
         _settingsRow(
           context,
-          icon: Icons.currency_exchange_outlined,
+          icon: Icons.currency_exchange_rounded,
+          color: const Color(0xff15803d),
           title: l10n.currency,
           value: (settings['currency'] as String?)?.trim().isNotEmpty == true
               ? settings['currency'] as String
@@ -461,7 +499,8 @@ class _SettingsPageState extends State<SettingsScreen> {
 
   Widget _applicationInfoSection(BuildContext context, AppLocalizations l10n) =>
       _SettingsSection(
-        icon: Icons.info_outline,
+        icon: Icons.info_rounded,
+        color: const Color(0xff475569),
         title: l10n.settingsApplicationInformation,
         description: l10n.settingsApplicationInformationDescription,
         child: Column(
@@ -469,7 +508,8 @@ class _SettingsPageState extends State<SettingsScreen> {
           children: [
             _settingsRow(
               context,
-              icon: Icons.computer_outlined,
+              icon: Icons.computer_rounded,
+              color: const Color(0xff475569),
               title: l10n.settingsDataStoredLocally,
               value: '',
               showDivider: false,
@@ -513,7 +553,8 @@ class _SettingsPageState extends State<SettingsScreen> {
     Map<String, Object?> settings,
     AppLocalizations l10n,
   ) => _SettingsSection(
-    icon: Icons.print_outlined,
+    icon: Icons.print_rounded,
+    color: const Color(0xff7c3aed),
     title: l10n.orderPrintingSettings,
     description: l10n.orderPrintingSettingsDescription,
     child: Column(
@@ -653,33 +694,37 @@ class _SettingsPageState extends State<SettingsScreen> {
     required IconData icon,
     required String title,
     required String value,
+    Color? color,
     String? description,
     String? actionLabel,
     VoidCallback? onTap,
     bool showDivider = true,
+    bool valueLtr = false,
   }) {
     final colors = Theme.of(context).colorScheme;
+    final tone = color ?? colors.primary;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       children: [
         Semantics(
           button: onTap != null,
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Container(
-                    width: 38,
-                    height: 38,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
-                      color: colors.surfaceContainerHigh,
-                      borderRadius: BorderRadius.circular(11),
+                      color: tone.withValues(alpha: dark ? .22 : .12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     alignment: Alignment.center,
-                    child: Icon(icon, color: colors.primary, size: 20),
+                    child: Icon(icon, color: tone, size: 18),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -688,22 +733,38 @@ class _SettingsPageState extends State<SettingsScreen> {
                       children: [
                         Text(
                           title,
-                          style: Theme.of(context).textTheme.titleSmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
-                        if (value.isNotEmpty) ...[
-                          const SizedBox(height: 3),
-                          Text(value, softWrap: true),
-                        ],
                         if (description != null) ...[
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 2),
                           Text(
                             description,
-                            style: Theme.of(context).textTheme.bodySmall,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: colors.onSurfaceVariant),
                           ),
                         ],
                       ],
                     ),
                   ),
+                  if (value.isNotEmpty) ...[
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Text(
+                        value,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                        textDirection: valueLtr ? TextDirection.ltr : null,
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
                   if (actionLabel != null)
                     TextButton.icon(
                       onPressed: onTap,
@@ -1451,16 +1512,20 @@ class _SettingsSection extends StatelessWidget {
     required this.title,
     required this.description,
     required this.child,
+    this.color,
   });
 
   final IconData icon;
   final String title;
   final String description;
   final Widget child;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final tone = color ?? colors.primary;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : const Duration(milliseconds: 220);
@@ -1489,11 +1554,11 @@ class _SettingsSection extends StatelessWidget {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: colors.surfaceContainerHigh,
+                      color: tone.withValues(alpha: dark ? .22 : .12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     alignment: Alignment.center,
-                    child: Icon(icon, color: colors.primary),
+                    child: Icon(icon, color: tone),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1577,124 +1642,50 @@ class _ThemePreviewTile extends StatelessWidget {
             ),
             child: Row(
               children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: (isDark ? const Color(0xff7c3aed) : const Color(0xffd97706))
+                        .withValues(alpha: .14),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                    size: 18,
+                    color: isDark
+                        ? const Color(0xff7c3aed)
+                        : const Color(0xffd97706),
+                  ),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Icon(
-                            isDark
-                                ? Icons.dark_mode_outlined
-                                : Icons.light_mode_outlined,
-                            size: 19,
-                            color: selected
-                                ? colors.primary
-                                : colors.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 7),
-                          Expanded(
-                            child: Text(
-                              title,
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                          if (selected) ...[
-                            Icon(
-                              Icons.check_circle,
-                              color: colors.primary,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              AppLocalizations.of(context)!.settingsSelected,
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(
-                                    color: colors.primary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                            ),
-                          ],
-                        ],
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
-                      const SizedBox(height: 4),
                       Text(
                         description,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall,
-                        softWrap: true,
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                _ThemeMiniPreview(isDark: isDark),
+                if (selected) ...[
+                  const SizedBox(width: 8),
+                  Icon(Icons.check_circle, color: colors.primary, size: 20),
+                ],
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ThemeMiniPreview extends StatelessWidget {
-  const _ThemeMiniPreview({required this.isDark});
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    final background = isDark
-        ? const Color(0xff0f172a)
-        : const Color(0xfff5f7fa);
-    final surface = isDark ? const Color(0xff1e293b) : Colors.white;
-    final rail = isDark ? const Color(0xff111c30) : const Color(0xff142238);
-    final accent = isDark ? const Color(0xff5eead4) : const Color(0xff087f8c);
-    final line = isDark ? const Color(0xff475569) : const Color(0xffe2e8f0);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: 92,
-        height: 62,
-        color: background,
-        child: Row(
-          children: [
-            Container(width: 17, color: rail),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(height: 4, width: 32, color: line),
-                    const SizedBox(height: 5),
-                    Expanded(
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: surface,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: line),
-                        ),
-                        child: Align(
-                          alignment: AlignmentDirectional.bottomStart,
-                          child: Container(
-                            width: 23,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              color: accent,
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

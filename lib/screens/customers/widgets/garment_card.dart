@@ -14,10 +14,14 @@ class GarmentCard extends StatefulWidget {
     required this.database,
     required this.customer,
     required this.garment,
+    this.dense = false,
   });
   final ShopDatabase database;
   final Map<String, Object?> customer;
   final Garment garment;
+
+  /// Shorter card used when the customer section is in a small window.
+  final bool dense;
 
   @override
   State<GarmentCard> createState() => _GarmentCardState();
@@ -53,6 +57,9 @@ class _GarmentCardState extends State<GarmentCard> {
         .where((profile) => profile['active'] == 1)
         .firstOrNull;
     final profileCount = profiles.length;
+    if (widget.dense) {
+      return _denseCard(context, active: active, profileCount: profileCount);
+    }
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Padding(
@@ -186,6 +193,193 @@ class _GarmentCardState extends State<GarmentCard> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _denseCard(
+    BuildContext context, {
+    required Map<String, Object?>? active,
+    required int profileCount,
+  }) {
+    final l10n = context.l10n;
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 10, 4),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            Widget action({
+              required IconData icon,
+              required String label,
+              required VoidCallback onPressed,
+              bool filled = false,
+            }) {
+              final textMax = (constraints.maxWidth - 72).clamp(
+                0.0,
+                constraints.maxWidth,
+              );
+              final child = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 16),
+                  const SizedBox(width: 4),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: textMax),
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              );
+              final style = ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: const WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                ),
+              );
+              if (filled) {
+                return FilledButton.tonal(
+                  style: style,
+                  onPressed: onPressed,
+                  child: child,
+                );
+              }
+              return TextButton(
+                style: style,
+                onPressed: onPressed,
+                child: child,
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 50,
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Image.asset(
+                        widget.garment.imageAsset,
+                        fit: BoxFit.contain,
+                        semanticLabel: localizedGarment(
+                          context,
+                          widget.garment,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            localizedGarment(context, widget.garment),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 2),
+                          if (loading)
+                            const LinearProgressIndicator(minHeight: 2)
+                          else
+                            Text(
+                              active == null
+                                  ? l10n.noMeasurementsYet
+                                  : l10n.measurementsSaved,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                          if (!loading && active != null)
+                            Text(
+                              '${active['profile_name']} · ${l10n.profileCount(profileCount)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          if (!loading && active != null)
+                            Text(
+                              l10n.updatedDate(
+                                formatDate(
+                                  active['updated_at'] as String,
+                                  locale: locale,
+                                ),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                Wrap(
+                  spacing: 2,
+                  runSpacing: 0,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    action(
+                      icon: Icons.straighten_outlined,
+                      label: l10n.viewMeasurements,
+                      onPressed: () => showMeasurementHistoryDialog(
+                        context,
+                        widget.database,
+                        widget.customer,
+                        widget.garment,
+                      ),
+                    ),
+                    action(
+                      icon: active == null ? Icons.add : Icons.edit_outlined,
+                      label: active == null ? l10n.addMeasurements : l10n.edit,
+                      onPressed: () => showMeasurementDialog(
+                        context,
+                        widget.database,
+                        widget.customer,
+                        widget.garment,
+                        existing: active,
+                        onSaved: _load,
+                      ),
+                    ),
+                    action(
+                      icon: Icons.add_shopping_cart_outlined,
+                      label: l10n.newOrder,
+                      filled: true,
+                      onPressed: () => showOrderDialog(
+                        context,
+                        widget.database,
+                        widget.customer,
+                        garment: widget.garment,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

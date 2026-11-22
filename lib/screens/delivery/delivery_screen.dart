@@ -17,6 +17,7 @@ import '../../l10n/app_localizations_extensions.dart';
 import '../../models/garment.dart';
 import '../../reports/order_payment_receipt_service.dart';
 import '../dashboard/dashboard_screen.dart';
+import '../dashboard/widgets/premium_illustration.dart';
 import 'delivery_board_logic.dart';
 import '../../widgets/responsive_layout.dart';
 
@@ -187,40 +188,45 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     final strings = _Copy(Localizations.localeOf(context).languageCode);
     return CommandScope(commands: _keyboardCommands(), builder: (context) => LayoutBuilder(
       builder: (context, constraints) {
-        final useBoard = prefs.boardView ?? constraints.maxWidth >= 1050;
+        final narrow = constraints.maxWidth < 980;
+        final useBoard = prefs.boardView ?? !narrow;
         final counts = DeliveryBoardLogic.counts(
           rows,
           CalendarService.shopToday(),
           upcomingDays: prefs.upcomingDays,
         );
+        final orders = filtered;
 
-        return RefreshIndicator(
-          onRefresh: _load,
-          child: ListView(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(20),
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
+                  const PremiumMarkIcon(
+                    mark: PremiumMark.delivery,
+                    accent: Color(0xff0f766e),
+                    size: 44,
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           l10n.deliveryBoard,
-                          style: Theme.of(context).textTheme.headlineMedium
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.headlineSmall
                               ?.copyWith(fontWeight: FontWeight.w800),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          strings.description,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 6),
                         Text(
                           '${strings.today}: ${formatDate(CalendarService.shopToday().toIso8601String(), locale: locale)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(fontWeight: FontWeight.w600),
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
@@ -230,7 +236,6 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                     tooltip: l10n.refresh,
                     icon: const Icon(Icons.refresh),
                   ),
-                  const SizedBox(width: 8),
                   if (constraints.maxWidth < 560)
                     IconButton.filled(
                       onPressed: _newOrder,
@@ -245,6 +250,15 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                     ),
                 ],
               ),
+              if (!narrow) ...[
+                const SizedBox(height: 2),
+                Text(
+                  strings.description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
               if (refreshing) ...[
                 const SizedBox(height: 8),
                 const LinearProgressIndicator(minHeight: 2),
@@ -273,45 +287,54 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                   ),
                 ),
               ],
-              const SizedBox(height: 18),
+              const SizedBox(height: 10),
               _summaryCards(counts, strings),
-              const SizedBox(height: 6),
-              Text(
-                strings.overlapNote,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               _filters(strings, useBoard),
-              const SizedBox(height: 12),
-              if (loading && rows.isEmpty)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(48),
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              else if (failed && rows.isEmpty)
-                Center(
-                  child: Column(
-                    children: [
-                      Text(l10n.errorGeneric),
-                      TextButton(onPressed: _load, child: Text(l10n.retry)),
-                    ],
-                  ),
-                )
-              else if (filtered.isEmpty)
-                _empty(strings)
-              else if (useBoard)
-                _board(
-                  filtered,
-                  locale,
-                  strings,
-                  height: (constraints.maxHeight - 350)
-                      .clamp(320.0, 600.0)
-                      .toDouble(),
-                )
-              else
-                ...filtered.map((row) => _orderCard(row, locale, strings)),
+              if (!narrow && useBoard) ...[
+                const SizedBox(height: 8),
+                _searchField(strings),
+              ],
+              const SizedBox(height: 8),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _load,
+                  child: loading && rows.isEmpty
+                      ? ListView(
+                          controller: _scrollController,
+                          children: const [
+                            SizedBox(height: 80),
+                            Center(child: CircularProgressIndicator()),
+                          ],
+                        )
+                      : failed && rows.isEmpty
+                      ? ListView(
+                          controller: _scrollController,
+                          children: [
+                            const SizedBox(height: 48),
+                            Center(child: Text(l10n.errorGeneric)),
+                            Center(
+                              child: TextButton(
+                                onPressed: _load,
+                                child: Text(l10n.retry),
+                              ),
+                            ),
+                          ],
+                        )
+                      : orders.isEmpty
+                      ? ListView(
+                          controller: _scrollController,
+                          children: [
+                            _searchField(strings),
+                            const SizedBox(height: 8),
+                            _empty(strings),
+                          ],
+                        )
+                      : narrow || !useBoard
+                      ? _stageList(orders, locale, strings, grouped: narrow)
+                      : _board(orders, locale, strings),
+                ),
+              ),
             ],
           ),
         );
@@ -334,37 +357,33 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   Widget _summaryCards(DeliveryCounts counts, _Copy strings) => LayoutBuilder(
     builder: (context, constraints) {
       final cards = <(String, int, IconData, Color)>[
-        (
-          'today',
-          counts.dueToday,
-          Icons.today,
-          Theme.of(context).colorScheme.primary,
-        ),
+        ('today', counts.dueToday, Icons.today_rounded, const Color(0xff2563eb)),
         (
           'overdue',
           counts.overdue,
           Icons.warning_amber_rounded,
-          Theme.of(context).colorScheme.error,
+          const Color(0xffdc2626),
         ),
         (
           'ready',
           counts.ready,
-          Icons.check_circle_outline,
-          Theme.of(context).colorScheme.secondary,
+          Icons.shopping_bag_rounded,
+          const Color(0xff15803d),
         ),
         (
           'upcoming',
           counts.upcoming,
-          Icons.upcoming_outlined,
-          Theme.of(context).colorScheme.tertiary,
+          Icons.event_rounded,
+          const Color(0xffd97706),
         ),
       ];
-      final columns = constraints.maxWidth < 600 ? 2 : 4;
-      const spacing = 10.0;
+      final columns = constraints.maxWidth < 340 ? 2 : 4;
+      const spacing = 8.0;
       final width = (constraints.maxWidth - spacing * (columns - 1)) / columns;
       final textScale = MediaQuery.textScalerOf(context).scale(1);
       final cardHeight =
-          76 + ((textScale - 1) * 42).clamp(0.0, 36.0).toDouble();
+          52 + ((textScale - 1) * 24).clamp(0.0, 20.0).toDouble();
+      final dark = Theme.of(context).brightness == Brightness.dark;
       return Wrap(
         spacing: spacing,
         runSpacing: spacing,
@@ -373,18 +392,18 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             SizedBox(
               width: width,
               height: cardHeight,
-              child: Card(
-                elevation: 0,
-                margin: EdgeInsets.zero,
-                color: prefs.dateFilter == card.$1
-                    ? card.$4.withValues(alpha: .08)
-                    : Theme.of(context).colorScheme.surface,
+              child: Material(
+                color: Color.alphaBlend(
+                  card.$4.withValues(alpha: dark ? .18 : .08),
+                  Theme.of(context).colorScheme.surface,
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   side: BorderSide(
                     color: prefs.dateFilter == card.$1
                         ? card.$4
-                        : Theme.of(context).colorScheme.outlineVariant,
+                        : card.$4.withValues(alpha: .28),
+                    width: prefs.dateFilter == card.$1 ? 1.6 : 1,
                   ),
                 ),
                 clipBehavior: Clip.antiAlias,
@@ -394,28 +413,41 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                     _changed();
                   },
                   child: Padding(
-                    padding: const EdgeInsets.all(11),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Row(
                       children: [
-                        Icon(card.$3, color: card.$4, size: 21),
-                        const SizedBox(width: 9),
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: card.$4.withValues(alpha: dark ? .28 : .16),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(card.$3, color: card.$4, size: 18),
+                        ),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                strings.filter(card.$1),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
                                 card.$2.toString(),
-                                style: Theme.of(context).textTheme.titleMedium
+                                textDirection: TextDirection.ltr,
+                                maxLines: 1,
+                                style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(
                                       fontWeight: FontWeight.w800,
                                       color: card.$4,
+                                      height: 1.05,
                                     ),
+                              ),
+                              Text(
+                                strings.filter(card.$1),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.labelMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ],
                           ),
@@ -430,32 +462,39 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       );
     },
   );
-  Widget _filters(_Copy strings, bool useBoard) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
+  Widget _searchField(_Copy strings) => TextField(
+    decoration: InputDecoration(
+      prefixIcon: const Icon(Icons.search),
+      hintText: strings.search,
+      filled: true,
+      isDense: true,
+      suffixIcon: prefs.search.isEmpty
+          ? null
+          : IconButton(
+              tooltip: strings.clear,
+              onPressed: () {
+                prefs.search = '';
+                searchController.clear();
+                _changed();
+              },
+              icon: const Icon(Icons.close),
+            ),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+    ),
+    onChanged: (value) {
+      prefs.search = value;
+      _changed();
+    },
+    controller: searchController,
+  );
+
+  Widget _filters(_Copy strings, bool useBoard) => Wrap(
+        spacing: 8,
+        runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           AdaptiveWidth(
-            width: 270,
-            child: TextField(
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                hintText: strings.search,
-                isDense: true,
-                border: const OutlineInputBorder(),
-              ),
-              onChanged: (value) {
-                prefs.search = value;
-                _changed();
-              },
-              controller: searchController,
-            ),
-          ),
-          AdaptiveWidth(
-            width: 200,
+            width: 156,
             child: DropdownButton<String>(
               isExpanded: true,
               value: prefs.dateFilter,
@@ -488,7 +527,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             ),
           ),
           AdaptiveWidth(
-            width: 190,
+            width: 156,
             child: DropdownButton<String>(
               isExpanded: true,
               value: prefs.garment,
@@ -511,7 +550,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             ),
           ),
           AdaptiveWidth(
-            width: 190,
+            width: 156,
             child: DropdownButton<String>(
               isExpanded: true,
               value: prefs.production,
@@ -534,7 +573,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             ),
           ),
           AdaptiveWidth(
-            width: 190,
+            width: 156,
             child: DropdownButton<int?>(
               isExpanded: true,
               value: workers.any((worker) => worker['id'] == prefs.workerId)
@@ -566,7 +605,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             ),
           ),
           AdaptiveWidth(
-            width: 175,
+            width: 156,
             child: DropdownButton<int>(
               isExpanded: true,
               value: prefs.upcomingDays,
@@ -589,7 +628,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             ),
           ),
           AdaptiveWidth(
-            width: 270,
+            width: 210,
             child: SegmentedButton<bool>(
               segments: [
                 ButtonSegment(
@@ -642,104 +681,144 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             child: Text(strings.clear),
           ),
         ],
-      ),
-    ),
-  );
+      );
+
+  Widget _stageList(
+    List<Map<String, Object?>> orders,
+    String locale,
+    _Copy strings, {
+    required bool grouped,
+  }) {
+    const statuses = ['Received', 'Cutting', 'Stitching', 'Ready'];
+    return ListView(
+      controller: _scrollController,
+      padding: const EdgeInsets.only(bottom: 12),
+      children: [
+        _searchField(strings),
+        const SizedBox(height: 8),
+        if (!grouped)
+          for (final row in orders) _orderCard(row, locale, strings)
+        else
+          for (final status in statuses) ...[
+            _DeliveryColumnHeader(
+              title: _status(status),
+              count: orders.where((row) => row['status'] == status).length,
+              color: _statusColor(status),
+              icon: _statusIcon(status),
+            ),
+            const SizedBox(height: 8),
+            if (orders.any((row) => row['status'] == status))
+              for (final row in orders.where((row) => row['status'] == status))
+                _orderCard(row, locale, strings, compact: true)
+            else
+              const SizedBox(height: 4),
+          ],
+      ],
+    );
+  }
 
   Widget _board(
     List<Map<String, Object?>> orders,
     String locale,
-    _Copy strings, {
-    required double height,
-  }) {
+    _Copy strings,
+  ) {
     const statuses = ['Received', 'Cutting', 'Stitching', 'Ready'];
-    const columnWidth = 342.0;
-    final colors = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: height,
-      child: Scrollbar(
-        controller: _boardScrollController,
-        thumbVisibility: true,
-        child: SingleChildScrollView(
-          controller: _boardScrollController,
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final status in statuses)
-                SizedBox(
-                  width: columnWidth,
-                  child: Card(
-                    elevation: 0,
-                    margin: const EdgeInsetsDirectional.only(
-                      end: 10,
-                      bottom: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      side: BorderSide(color: colors.outlineVariant),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      children: [
-                        _DeliveryColumnHeader(
-                          title: _status(status),
-                          count: orders
-                              .where((row) => row['status'] == status)
-                              .length,
-                          color: _statusColor(status),
-                          icon: _statusIcon(status),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // A 24-inch window can hold four readable columns. A laptop cannot,
+        // so the same four stages sit in two rows of two wider columns.
+        const gap = 8.0;
+        final across = constraints.maxWidth >= 1560 ? 4 : 2;
+        final rows = (statuses.length / across).ceil();
+        return Column(
+          children: [
+            for (var row = 0; row < rows; row++) ...[
+              if (row > 0) const SizedBox(height: gap),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var column = 0; column < across; column++) ...[
+                      if (column > 0) const SizedBox(width: gap),
+                      Expanded(
+                        child: _stageColumn(
+                          statuses[row * across + column],
+                          orders,
+                          locale,
+                          strings,
                         ),
-                        Expanded(
-                          child: Builder(
-                            builder: (context) {
-                              final columnOrders = orders
-                                  .where((row) => row['status'] == status)
-                                  .toList();
-                              if (columnOrders.isEmpty) {
-                                return Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.checklist_rtl_outlined,
-                                          color: colors.outline,
-                                          size: 28,
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          strings.emptyColumn,
-                                          textAlign: TextAlign.center,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }
-                              return ListView.builder(
-                                padding: const EdgeInsets.all(8),
-                                itemCount: columnOrders.length,
-                                itemBuilder: (context, index) => _orderCard(
-                                  columnOrders[index],
-                                  locale,
-                                  strings,
-                                  compact: true,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    ],
+                  ],
                 ),
+              ),
             ],
-          ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _stageColumn(
+    String status,
+    List<Map<String, Object?>> orders,
+    String locale,
+    _Copy strings,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    final columnOrders = orders
+        .where((row) => row['status'] == status)
+        .toList();
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            _DeliveryColumnHeader(
+              title: _status(status),
+              count: columnOrders.length,
+              color: _statusColor(status),
+              icon: _statusIcon(status),
+            ),
+            Expanded(
+              child: columnOrders.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _statusIcon(status),
+                              color: _statusColor(status),
+                              size: 28,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              strings.emptyColumn,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(6, 6, 6, 8),
+                      itemCount: columnOrders.length,
+                      itemBuilder: (context, index) => _orderCard(
+                        columnOrders[index],
+                        locale,
+                        strings,
+                        compact: true,
+                      ),
+                    ),
+            ),
+          ],
         ),
       ),
     );
@@ -767,20 +846,32 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     final orderId = row['id'] as int;
     final garments = _parseGarments(row['garment_summary']);
 
+    final accent = _statusColor(status);
     return CommandRecordTarget(kind: 'order', record: row, child: Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(13),
-        side: BorderSide(color: colors.outlineVariant),
+      color: Color.alphaBlend(
+        accent.withValues(alpha: .045),
+        colors.surface,
       ),
-      child: Padding(
-        padding: EdgeInsets.all(compact ? 10 : 14),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: accent.withValues(alpha: .35)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: BorderDirectional(
+            start: BorderSide(color: accent, width: 5),
+          ),
+        ),
+        child: Padding(
+        padding: EdgeInsets.all(compact ? 8 : 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
                   child: Column(
@@ -794,13 +885,14 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textDirection: TextDirection.ltr,
-                        style: Theme.of(context).textTheme.titleMedium
+                        style: (compact
+                                ? Theme.of(context).textTheme.titleSmall
+                                : Theme.of(context).textTheme.titleMedium)
                             ?.copyWith(
                               color: colors.primary,
                               fontWeight: FontWeight.w800,
                             ),
                       ),
-                      const SizedBox(height: 2),
                       Text(
                         strings.orderReference(
                           row['number']?.toString() ?? '—',
@@ -816,6 +908,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                 ),
                 PopupMenuButton<_OrderMenuAction>(
                   tooltip: strings.moreActions,
+                  padding: compact ? EdgeInsets.zero : const EdgeInsets.all(8),
+                  iconSize: compact ? 20 : 24,
                   onSelected: (action) =>
                       _handleMoreAction(action, row, strings),
                   itemBuilder: (context) => [
@@ -857,18 +951,47 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                   ],
                   icon: const Icon(Icons.more_vert),
                 ),
-                _pill(_status(status), _statusColor(status)),
+                Flexible(child: _pill(_status(status), accent)),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
+            SizedBox(height: compact ? 4 : 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                if (compact && phone.trim().isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      phone,
+                      textDirection: TextDirection.ltr,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: strings.copyPhone,
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 28,
+                      height: 28,
+                    ),
+                    onPressed: () => _copyPhone(phone, strings),
+                    icon: const Icon(Icons.copy, size: 16),
+                  ),
+                ],
+              ],
             ),
-            if (phone.trim().isNotEmpty)
+            if (!compact && phone.trim().isNotEmpty)
               Row(
                 children: [
                   const Icon(Icons.phone_outlined, size: 16),
@@ -889,12 +1012,21 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                   ),
                 ],
               ),
-            const SizedBox(height: 3),
-            _DeliveryGarmentList(garments: garments, strings: strings),
-            const SizedBox(height: 8),
+            SizedBox(height: compact ? 2 : 3),
+            _DeliveryGarmentList(
+              garments: garments,
+              strings: strings,
+              dense: compact,
+            ),
+            SizedBox(height: compact ? 4 : 8),
             Container(
               width: double.infinity,
-              padding: const EdgeInsetsDirectional.fromSTEB(9, 7, 9, 7),
+              padding: EdgeInsetsDirectional.fromSTEB(
+                8,
+                compact ? 4 : 7,
+                8,
+                compact ? 4 : 7,
+              ),
               decoration: BoxDecoration(
                 color: (due != null && due < 0 ? colors.error : colors.primary)
                     .withValues(alpha: .07),
@@ -930,7 +1062,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: compact ? 4 : 8),
             _DeliveryPaymentSummary(
               total: total,
               paid: paid,
@@ -985,17 +1117,39 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                       ?.copyWith(color: colors.onSurfaceVariant),
                 ),
               ),
-            const SizedBox(height: 9),
-            Wrap(
-              spacing: 7,
-              runSpacing: 6,
+            SizedBox(height: compact ? 6 : 9),
+            Row(
               children: [
-                OutlinedButton.icon(
-                  onPressed: () => _openDetails(row),
-                  icon: const Icon(Icons.open_in_new, size: 17),
-                  label: Text(strings.viewDetails),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: compact
+                        ? OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: const Size(0, 34),
+                          )
+                        : null,
+                    onPressed: () => _openDetails(row),
+                    icon: const Icon(Icons.open_in_new, size: 16),
+                    label: Text(
+                      strings.viewDetails,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
-                FilledButton.icon(
+                const SizedBox(width: 6),
+                Expanded(
+                  child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accent,
+                    foregroundColor: Colors.white,
+                    visualDensity: compact ? VisualDensity.compact : null,
+                    padding: compact
+                        ? const EdgeInsets.symmetric(horizontal: 8)
+                        : null,
+                    minimumSize: compact ? const Size(0, 34) : null,
+                  ),
                   onPressed: busy.contains(orderId)
                       ? null
                       : status == 'Ready'
@@ -1017,11 +1171,15 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                     status == 'Ready'
                         ? strings.deliver
                         : _action(status, strings),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                ),
                 ),
               ],
             ),
           ],
+        ),
         ),
       ),
     ));
@@ -1117,7 +1275,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     ),
     child: Text(
       text,
-      style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
     ),
   );
 
@@ -1493,18 +1653,18 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   };
 
   Color _statusColor(String status) => switch (status) {
-    'Received' => Theme.of(context).colorScheme.primary,
-    'Cutting' => Theme.of(context).colorScheme.tertiary,
-    'Stitching' => Theme.of(context).colorScheme.secondary,
-    'Ready' => Theme.of(context).colorScheme.secondary,
+    'Received' => const Color(0xff2563eb),
+    'Cutting' => const Color(0xffd97706),
+    'Stitching' => const Color(0xff7c3aed),
+    'Ready' => const Color(0xff15803d),
     _ => Theme.of(context).colorScheme.primary,
   };
 
   IconData _statusIcon(String status) => switch (status) {
-    'Received' => Icons.inbox_outlined,
-    'Cutting' => Icons.content_cut_outlined,
-    'Stitching' => Icons.checkroom_outlined,
-    'Ready' => Icons.task_alt_outlined,
+    'Received' => Icons.inbox_rounded,
+    'Cutting' => Icons.content_cut_rounded,
+    'Stitching' => Icons.checkroom_rounded,
+    'Ready' => Icons.task_alt_rounded,
     _ => Icons.circle_outlined,
   };
 }
@@ -1596,10 +1756,15 @@ class _DeliveryColumnHeader extends StatelessWidget {
 }
 
 class _DeliveryGarmentList extends StatefulWidget {
-  const _DeliveryGarmentList({required this.garments, required this.strings});
+  const _DeliveryGarmentList({
+    required this.garments,
+    required this.strings,
+    this.dense = false,
+  });
 
   final List<_GarmentQuantity> garments;
   final _Copy strings;
+  final bool dense;
 
   @override
   State<_DeliveryGarmentList> createState() => _DeliveryGarmentListState();
@@ -1624,10 +1789,13 @@ class _DeliveryGarmentListState extends State<_DeliveryGarmentList> {
       children: [
         for (final item in widget.garments.take(visibleCount))
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 3),
+            padding: EdgeInsets.symmetric(vertical: widget.dense ? 2 : 3),
             child: Row(
               children: [
-                _DeliveryGarmentThumbnail(garment: item.garment, size: 68),
+                _DeliveryGarmentThumbnail(
+                  garment: item.garment,
+                  size: widget.dense ? 40 : 68,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(

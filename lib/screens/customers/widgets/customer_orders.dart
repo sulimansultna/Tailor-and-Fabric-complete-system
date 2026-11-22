@@ -241,94 +241,104 @@ class _CustomerOrdersState extends State<CustomerOrders>
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 8,
-                  children: [
-                    SizedBox(
-                      width: 280,
-                      child: TextField(
-                        controller: search,
-                        onChanged: (value) => setState(() => query = value),
-                        decoration: InputDecoration(
-                          labelText: l10n.searchOrders,
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: query.isEmpty
-                              ? null
-                              : IconButton(
-                                  tooltip: l10n.clearSearch,
-                                  onPressed: () => setState(() {
-                                    search.clear();
-                                    query = '';
-                                  }),
-                                  icon: const Icon(Icons.close),
-                                ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 210,
-                      child: DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        initialValue: production,
-                        decoration: InputDecoration(
-                          labelText: l10n.productionStatus,
-                          isDense: true,
-                        ),
-                        items:
-                            [
-                                  'All',
-                                  'Received',
-                                  'Cutting',
-                                  'Stitching',
-                                  'Ready',
-                                  'Delivered',
-                                  'Cancelled',
-                                ]
-                                .map(
-                                  (value) => DropdownMenuItem(
-                                    value: value,
-                                    child: Text(
-                                      value == 'All'
-                                          ? l10n.all
-                                          : localizedStatus(context, value),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final maxWidth = constraints.maxWidth;
+                    double fieldWidth(double preferred) =>
+                        preferred < maxWidth ? preferred : maxWidth;
+                    return Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: [
+                        SizedBox(
+                          width: fieldWidth(280),
+                          child: TextField(
+                            controller: search,
+                            onChanged: (value) => setState(() => query = value),
+                            decoration: InputDecoration(
+                              labelText: l10n.searchOrders,
+                              prefixIcon: const Icon(Icons.search),
+                              suffixIcon: query.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: l10n.clearSearch,
+                                      onPressed: () => setState(() {
+                                        search.clear();
+                                        query = '';
+                                      }),
+                                      icon: const Icon(Icons.close),
                                     ),
-                                  ),
-                                )
-                                .toList(),
-                        onChanged: (value) =>
-                            setState(() => production = value ?? 'All'),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 190,
-                      child: DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        initialValue: payment,
-                        decoration: InputDecoration(
-                          labelText: l10n.paymentStatus,
-                          isDense: true,
+                            ),
+                          ),
                         ),
-                        items: [
-                          DropdownMenuItem(value: 'All', child: Text(l10n.all)),
-                          DropdownMenuItem(
-                            value: 'Unpaid',
-                            child: Text(l10n.unpaid),
+                        SizedBox(
+                          width: fieldWidth(210),
+                          child: DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            initialValue: production,
+                            decoration: InputDecoration(
+                              labelText: l10n.productionStatus,
+                              isDense: true,
+                            ),
+                            items:
+                                [
+                                      'All',
+                                      'Received',
+                                      'Cutting',
+                                      'Stitching',
+                                      'Ready',
+                                      'Delivered',
+                                      'Cancelled',
+                                    ]
+                                    .map(
+                                      (value) => DropdownMenuItem(
+                                        value: value,
+                                        child: Text(
+                                          value == 'All'
+                                              ? l10n.all
+                                              : localizedStatus(context, value),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: (value) =>
+                                setState(() => production = value ?? 'All'),
                           ),
-                          DropdownMenuItem(
-                            value: 'Partial',
-                            child: Text(l10n.partiallyPaid),
+                        ),
+                        SizedBox(
+                          width: fieldWidth(190),
+                          child: DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            initialValue: payment,
+                            decoration: InputDecoration(
+                              labelText: l10n.paymentStatus,
+                              isDense: true,
+                            ),
+                            items: [
+                              DropdownMenuItem(
+                                value: 'All',
+                                child: Text(l10n.all),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Unpaid',
+                                child: Text(l10n.unpaid),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Partial',
+                                child: Text(l10n.partiallyPaid),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Paid',
+                                child: Text(l10n.paidInFull),
+                              ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => payment = value ?? 'All'),
                           ),
-                          DropdownMenuItem(
-                            value: 'Paid',
-                            child: Text(l10n.paidInFull),
-                          ),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => payment = value ?? 'All'),
-                      ),
-                    ),
-                  ],
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -517,6 +527,47 @@ class _OrderRow extends StatelessWidget {
         onTap: onOpen,
         child: LayoutBuilder(
           builder: (context, constraints) {
+            if (constraints.maxWidth < 640) {
+              return Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(9, 8, 8, 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        _OrderGarmentThumb(garment: garment),
+                        const SizedBox(width: 9),
+                        Expanded(child: heading),
+                        openButton,
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: amounts,
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 5,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        ...dateLabels.map(
+                          (label) => DefaultTextStyle(
+                            style: Theme.of(context).textTheme.bodySmall!,
+                            child: label,
+                          ),
+                        ),
+                        productionBadge,
+                        paymentBadge,
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }
+
             if (constraints.maxWidth < 900) {
               return Padding(
                 padding: const EdgeInsetsDirectional.fromSTEB(9, 8, 8, 8),

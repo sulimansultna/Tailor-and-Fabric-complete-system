@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../../commands/app_commands.dart';
 
 import '../../widgets/horizontal_table.dart';
@@ -14,6 +15,25 @@ import '../../models/garment.dart';
 import 'widgets/customer_ledger.dart';
 import 'widgets/customer_orders.dart';
 import 'widgets/garment_card.dart';
+
+Tab _sectionTab({
+  required bool compact,
+  required IconData icon,
+  required String label,
+}) {
+  if (!compact) return Tab(text: label, icon: Icon(icon));
+  return Tab(
+    height: 40,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18),
+        const SizedBox(width: 6),
+        Text(label, maxLines: 1),
+      ],
+    ),
+  );
+}
 
 class CustomerProfileScreen extends StatefulWidget {
   const CustomerProfileScreen({
@@ -105,246 +125,262 @@ class _CustomerProfileState extends State<CustomerProfileScreen>
   @override
   Widget build(BuildContext context) {
     final registry = AppCommandRegistry.maybeOf(context);
-    if (registry?.selected('customer')?['id'] != customer['id']) registry?.select('customer', customer);
+    if (registry?.selected('customer')?['id'] != customer['id'])
+      registry?.select('customer', customer);
     final l10n = context.l10n;
     final locale = Localizations.localeOf(context).toLanguageTag();
     final width = MediaQuery.sizeOf(context).width;
-    final compact = width < 760;
+    final compact = width < 900;
     final customerName = customer['name'] as String? ?? '';
     final code = customer['code'] as String? ?? 'C${customer['id']}';
     final phone = customer['phone'] as String? ?? '';
-    return CommandScope(priority: 20, commands: [
-      AppCommand('customers.edit', _editCustomer, aliases: [CommandKey.edit]),
-      AppCommand('orders.add', () => _newOrder(), aliases: [CommandKey.add]),
-      AppCommand('payments.add', _receivePayment),
-      AppCommand(CommandKey.refresh, _refresh),
-      AppCommand('nav.customerLedger', () async { tabs.animateTo(1); }),
-    ], child: Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(customerName, maxLines: 1, overflow: TextOverflow.ellipsis),
-            Text(
-              code,
-              textDirection: TextDirection.ltr,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return CommandScope(
+      priority: 20,
+      commands: [
+        AppCommand('customers.edit', _editCustomer, aliases: [CommandKey.edit]),
+        AppCommand('orders.add', () => _newOrder(), aliases: [CommandKey.add]),
+        AppCommand('payments.add', _receivePayment),
+        AppCommand(CommandKey.refresh, _refresh),
+        AppCommand('nav.customerLedger', () async {
+          tabs.animateTo(1);
+        }),
+      ],
+      child: Scaffold(
+        appBar: AppBar(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(customerName, maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(
+                code,
+                textDirection: TextDirection.ltr,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
+            ],
+          ),
+          actions: [
+            IconButton(
+              tooltip: l10n.refresh,
+              onPressed: _refresh,
+              icon: const Icon(Icons.refresh),
             ),
+            IconButton(
+              tooltip: l10n.copyPhone,
+              onPressed: _copyPhone,
+              icon: const Icon(Icons.content_copy_outlined),
+            ),
+            IconButton(
+              tooltip: l10n.editCustomer,
+              onPressed: _editCustomer,
+              icon: const Icon(Icons.edit_outlined),
+            ),
+            if (!compact)
+              TextButton.icon(
+                onPressed: () => _newOrder(),
+                icon: const Icon(Icons.add),
+                label: Text(l10n.newOrder),
+              ),
+            if (!compact)
+              FilledButton.tonalIcon(
+                onPressed: _receivePayment,
+                icon: const Icon(Icons.payments_outlined),
+                label: Text(l10n.receivePayment),
+              ),
+            const SizedBox(width: 8),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: l10n.refresh,
-            onPressed: _refresh,
-            icon: const Icon(Icons.refresh),
-          ),
-          IconButton(
-            tooltip: l10n.copyPhone,
-            onPressed: _copyPhone,
-            icon: const Icon(Icons.content_copy_outlined),
-          ),
-          IconButton(
-            tooltip: l10n.editCustomer,
-            onPressed: _editCustomer,
-            icon: const Icon(Icons.edit_outlined),
-          ),
-          if (!compact)
-            TextButton.icon(
-              onPressed: () => _newOrder(),
-              icon: const Icon(Icons.add),
-              label: Text(l10n.newOrder),
-            ),
-          if (!compact)
-            FilledButton.tonalIcon(
-              onPressed: _receivePayment,
-              icon: const Icon(Icons.payments_outlined),
-              label: Text(l10n.receivePayment),
-            ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: NestedScrollView(
-          headerSliverBuilder: (context, innerBoxIsScrolled) => [
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(
-                compact ? 16 : 28,
-                10,
-                compact ? 16 : 28,
-                0,
-              ),
-              sliver: SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Wrap(
-                            spacing: 10,
-                            runSpacing: 4,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              SelectableText(
-                                phone,
-                                textDirection: TextDirection.ltr,
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                              if ((customer['address'] as String?)
-                                      ?.isNotEmpty ==
-                                  true)
-                                Text(
-                                  customer['address'] as String,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurfaceVariant,
-                                      ),
+        body: RefreshIndicator(
+          onRefresh: _refresh,
+          child: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  compact ? 16 : 28,
+                  10,
+                  compact ? 16 : 28,
+                  0,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Wrap(
+                              spacing: 10,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                SelectableText(
+                                  phone,
+                                  textDirection: TextDirection.ltr,
+                                  style: Theme.of(context).textTheme.titleSmall,
                                 ),
-                            ],
+                                if ((customer['address'] as String?)
+                                        ?.isNotEmpty ==
+                                    true)
+                                  Text(
+                                    customer['address'] as String,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
+                                  ),
+                              ],
+                            ),
                           ),
+                          if (compact) ...[
+                            IconButton.filledTonal(
+                              tooltip: l10n.newOrder,
+                              onPressed: () => _newOrder(),
+                              icon: const Icon(
+                                Icons.add_shopping_cart_outlined,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            IconButton.filled(
+                              tooltip: l10n.receivePayment,
+                              onPressed: _receivePayment,
+                              icon: const Icon(Icons.payments_outlined),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _FinancialSummary(
+                        future: financials,
+                        locale: locale,
+                        onOpenLedger: () => tabs.animateTo(1),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  compact ? 16 : 28,
+                  14,
+                  compact ? 16 : 28,
+                  4,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final dense = constraints.maxWidth < 1040;
+                      final columns = !dense
+                          ? 3
+                          : constraints.maxWidth >= 780
+                          ? 3
+                          : constraints.maxWidth >= 520
+                          ? 2
+                          : 1;
+                      final gap = dense ? 10.0 : 12.0;
+                      final cardWidth = columns == 1
+                          ? constraints.maxWidth
+                          : (constraints.maxWidth - gap * (columns - 1)) /
+                                columns;
+                      return Wrap(
+                        spacing: gap,
+                        runSpacing: gap,
+                        children: [
+                          for (final garment in Garment.values)
+                            SizedBox(
+                              width: cardWidth,
+                              child: GarmentCard(
+                                database: widget.database,
+                                customer: customer,
+                                garment: garment,
+                                dense: dense,
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+              SliverOverlapAbsorber(
+                handle: NestedScrollView.sliverOverlapAbsorberHandleFor(
+                  context,
+                ),
+                sliver: SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 28),
+                  sliver: SliverPersistentHeader(
+                    pinned: true,
+                    delegate: FixedTableHeader(
+                      height: compact ? 48 : 80,
+                      child: Material(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        child: TabBar(
+                          controller: tabs,
+                          isScrollable: compact,
+                          tabs: [
+                            _sectionTab(
+                              compact: compact,
+                              icon: Icons.receipt_long_outlined,
+                              label: l10n.customerOrders,
+                            ),
+                            _sectionTab(
+                              compact: compact,
+                              icon: Icons.account_balance_wallet_outlined,
+                              label: l10n.customerLedger,
+                            ),
+                            _sectionTab(
+                              compact: compact,
+                              icon: Icons.person_outline,
+                              label: l10n.customerInformation,
+                            ),
+                          ],
                         ),
-                        if (compact) ...[
-                          IconButton.filledTonal(
-                            tooltip: l10n.newOrder,
-                            onPressed: () => _newOrder(),
-                            icon: const Icon(Icons.add_shopping_cart_outlined),
-                          ),
-                          const SizedBox(width: 6),
-                          IconButton.filled(
-                            tooltip: l10n.receivePayment,
-                            onPressed: _receivePayment,
-                            icon: const Icon(Icons.payments_outlined),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _FinancialSummary(
-                      future: financials,
-                      locale: locale,
-                      onOpenLedger: () => tabs.animateTo(1),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(
-                compact ? 16 : 28,
-                14,
-                compact ? 16 : 28,
-                4,
-              ),
-              sliver: SliverToBoxAdapter(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final columns = constraints.maxWidth >= 1100
-                        ? 3
-                        : constraints.maxWidth >= 680
-                        ? 2
-                        : 1;
-                    final gap = 12.0;
-                    final cardWidth = columns == 1
-                        ? constraints.maxWidth
-                        : (constraints.maxWidth - gap * (columns - 1)) /
-                              columns;
-                    return Wrap(
-                      spacing: gap,
-                      runSpacing: gap,
-                      children: [
-                        for (final garment in Garment.values)
-                          SizedBox(
-                            width: cardWidth,
-                            child: GarmentCard(
-                              database: widget.database,
-                              customer: customer,
-                              garment: garment,
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ),
-            SliverOverlapAbsorber(
-              handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
-              sliver: SliverPadding(
-                padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 28),
-                sliver: SliverPersistentHeader(
-                  pinned: true,
-                  delegate: FixedTableHeader(
-                    height: 80,
-                    child: Material(
-                      color: Theme.of(context).scaffoldBackgroundColor,
-                      child: TabBar(
-                        controller: tabs,
-                        isScrollable: compact,
-                        tabs: [
-                          Tab(
-                            text: l10n.customerOrders,
-                            icon: const Icon(Icons.receipt_long_outlined),
-                          ),
-                          Tab(
-                            text: l10n.customerLedger,
-                            icon: const Icon(
-                              Icons.account_balance_wallet_outlined,
-                            ),
-                          ),
-                          Tab(
-                            text: l10n.customerInformation,
-                            icon: const Icon(Icons.person_outline),
-                          ),
-                        ],
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
-          body: Padding(
-            padding: EdgeInsets.fromLTRB(
-              compact ? 12 : 24,
-              4,
-              compact ? 12 : 24,
-              12,
-            ),
-            child: TabBarView(
-              controller: tabs,
-              children: [
-                CustomerOrders(
-                  database: widget.database,
-                  customer: customer,
-                  refreshToken: refreshToken,
-                  onPaymentDone: _refresh,
-                ),
-                CustomerLedger(
-                  database: widget.database,
-                  customer: customer,
-                  onReceivePayment: _receivePayment,
-                  onChanged: _refresh,
-                  onOpenOrders: () => tabs.animateTo(0),
-                  refreshToken: refreshToken,
-                ),
-                _CustomerInformation(
-                  customer: customer,
-                  locale: locale,
-                  onEdit: _editCustomer,
-                ),
-              ],
+            ],
+            body: Padding(
+              padding: EdgeInsets.fromLTRB(
+                compact ? 12 : 24,
+                4,
+                compact ? 12 : 24,
+                12,
+              ),
+              child: TabBarView(
+                controller: tabs,
+                children: [
+                  CustomerOrders(
+                    database: widget.database,
+                    customer: customer,
+                    refreshToken: refreshToken,
+                    onPaymentDone: _refresh,
+                  ),
+                  CustomerLedger(
+                    database: widget.database,
+                    customer: customer,
+                    onReceivePayment: _receivePayment,
+                    onChanged: _refresh,
+                    onOpenOrders: () => tabs.animateTo(0),
+                    refreshToken: refreshToken,
+                  ),
+                  _CustomerInformation(
+                    customer: customer,
+                    locale: locale,
+                    onEdit: _editCustomer,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ));
+    );
   }
 }
 
@@ -382,12 +418,13 @@ class _FinancialSummary extends StatelessWidget {
       final paid = snapshot.data!['paid']!;
       final balance = snapshot.data!['balance']!;
       final credit = snapshot.data!['credit']!;
+      final windowCompact = MediaQuery.sizeOf(context).width < 900;
       return Card(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(windowCompact ? 10 : 16),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final compact = constraints.maxWidth < 600;
+              final compact = constraints.maxWidth < 700;
               final items = [
                 _SummaryValue(
                   label: context.l10n.totalBilled,
@@ -484,6 +521,8 @@ class _SummaryValue extends StatelessWidget {
             Text(
               formatMoney(value, locale: locale),
               textDirection: TextDirection.ltr,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w800, color: color),
             ),

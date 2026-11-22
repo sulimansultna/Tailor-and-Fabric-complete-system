@@ -14,6 +14,8 @@ import '../../core/calendar_service.dart';
 import '../../core/formatters.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../reports/report_service.dart';
+import '../dashboard/widgets/premium_illustration.dart';
+import 'report_profit_chart.dart';
 
 String _presetLabel(AppLocalizations l10n, String preset) => switch (preset) {
   'Today' => l10n.reportToday,
@@ -745,6 +747,58 @@ class _ReportsScreenState extends State<ReportsScreen> {
     ];
   }
 
+  (IconData, Color) _reportTone(String title) {
+    if (title == _l10n.reportFabricGrossProfit) {
+      return (Icons.texture_rounded, const Color(0xff0f766e));
+    }
+    if (title == _l10n.reportStitchingGrossProfit) {
+      return (Icons.content_cut_rounded, const Color(0xff7c3aed));
+    }
+    if (title == _l10n.reportMetricExpenses) {
+      return (Icons.receipt_long_rounded, const Color(0xffc2410c));
+    }
+    if (title == _l10n.reportMetricNetProfit) {
+      return (Icons.account_balance_wallet_rounded, const Color(0xff15803d));
+    }
+    if (title == _l10n.reportNetStitchingRevenue) {
+      return (Icons.payments_rounded, const Color(0xff2563eb));
+    }
+    if (title == _l10n.reportNetFabricSalesRevenue) {
+      return (Icons.storefront_rounded, const Color(0xff0284c7));
+    }
+    if (title == _l10n.reportFabricCostOfSales ||
+        title == _l10n.reportDirectStitchingCosts) {
+      return (Icons.inventory_2_rounded, const Color(0xffb45309));
+    }
+    if (title == _l10n.reportNetMetersSold) {
+      return (Icons.straighten_rounded, const Color(0xff0891b2));
+    }
+    if (title == _l10n.reportGarmentQuantity) {
+      return (Icons.checkroom_rounded, const Color(0xffdb2777));
+    }
+    return (Icons.analytics_rounded, Theme.of(context).colorScheme.primary);
+  }
+
+  Widget _profitChart(
+    String title,
+    List<(String, Object?)> rows,
+    String locale,
+  ) => ReportProfitChart(
+    title: title,
+    bars: [
+      for (final row in rows)
+        ReportChartBar(
+          label: row.$1,
+          amount: row.$2 is num ? (row.$2 as num).toInt() : null,
+          display: row.$2 is num
+              ? _formatReportMoney((row.$2 as num).toInt(), locale)
+              : _l10n.reportUnavailable,
+          color: _reportTone(row.$1).$2,
+          icon: _reportTone(row.$1).$1,
+        ),
+    ],
+  );
+
   Widget _metricCard(
     String title,
     Object? rawValue, {
@@ -759,37 +813,58 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ? _formatQuantity(rawValue)
               : _formatReportMoney(rawValue.toInt(), locale)
         : _l10n.reportUnavailable;
-    final brightness = Theme.of(context).brightness;
-    final color = profit && rawValue is num
-        ? rawValue < 0
-              ? Theme.of(context).colorScheme.error
-              : brightness == Brightness.dark
-              ? const Color(0xff86efac)
-              : const Color(0xff15803d)
-        : Theme.of(context).colorScheme.onSurface;
+    final scheme = Theme.of(context).colorScheme;
+    final tone = _reportTone(title);
+    final negative = profit && rawValue is num && rawValue < 0;
+    final color = negative
+        ? scheme.error
+        : profit && rawValue is num
+        ? tone.$2
+        : scheme.onSurface;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
       width: 220,
-      child: Card(
-        elevation: 0,
-        color: Theme.of(context).colorScheme.surface,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(
+            tone.$2.withValues(alpha: dark ? .16 : .08),
+            scheme.surface,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: tone.$2.withValues(alpha: .28)),
+        ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              Row(
+                children: [
+                  Icon(
+                    tone.$1,
+                    size: 16,
+                    color: negative ? scheme.error : tone.$2,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: scheme.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 4),
               Text(
                 value,
                 maxLines: 1,
                 softWrap: false,
+                textDirection: TextDirection.ltr,
                 style: Theme.of(context).textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.w800, color: color),
               ),
@@ -1074,6 +1149,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ),
             ],
           ),
+          const SizedBox(height: 12),
+          _profitChart(_l10n.dashProfitChart, [
+            (_l10n.reportFabricGrossProfit, profit['fabric_profit']),
+            (_l10n.reportStitchingGrossProfit, profit['stitching_profit']),
+            (_l10n.reportMetricExpenses, profit['expenses']),
+            (_l10n.reportMetricNetProfit, profit['net_profit']),
+          ], locale),
           const SizedBox(height: 8),
           Card.outlined(
             child: Padding(
@@ -1549,6 +1631,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ),
                 ),
         ),
+        if (!_isFabricPriceProfit) ...[
+          const SizedBox(height: 10),
+          _profitChart(
+            _l10n.dashProfitChart,
+            [
+              for (final metric in metrics)
+                if (metric.$1 == _l10n.reportFabricGrossProfit ||
+                    metric.$1 == _l10n.reportStitchingGrossProfit)
+                  (metric.$1, metric.$2),
+            ],
+            locale,
+          ),
+        ],
       ],
     );
   }
@@ -2155,22 +2250,34 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ? '${_l10n.reportNeedsRegeneration} · $generatedCaption'
         : generatedCaption;
     final compactHeader = MediaQuery.sizeOf(context).width < 1000;
-    Widget titleBlock() => Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    Widget titleBlock() => Row(
       children: [
-        Text(
-          _l10n.reports,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface,
-            fontWeight: FontWeight.w800,
-          ),
+        const PremiumMarkIcon(
+          mark: PremiumMark.reports,
+          accent: Color(0xff7c3aed),
+          size: 48,
         ),
-        const SizedBox(height: 2),
-        Text(
-          headerDescription,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodySmall,
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _l10n.reports,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                headerDescription,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
         ),
       ],
     );

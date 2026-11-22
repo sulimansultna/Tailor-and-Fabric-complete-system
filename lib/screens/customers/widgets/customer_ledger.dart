@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../../widgets/horizontal_table.dart';
+import '../../../widgets/responsive_layout.dart';
 
 import '../../../core/app_date_picker.dart';
 import '../../../core/calendar_service.dart';
@@ -224,7 +225,7 @@ class _CustomerLedgerState extends State<CustomerLedger>
       builder: (dialogContext) => AlertDialog(
         title: Text(_word(context, 'transactionDetails')),
         content: SizedBox(
-          width: 560,
+          width: fitContentWidth(dialogContext, 560),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -387,67 +388,70 @@ class _CustomerLedgerState extends State<CustomerLedger>
             _word(context, opening ? 'setOpeningBalance' : 'recordAdjustment'),
           ),
           content: SizedBox(
-            width: 440,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: amount,
-                  autofocus: true,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: _word(context, 'amount'),
-                  ),
-                ),
-                DropdownButtonFormField<bool>(
-                  initialValue: isCredit,
-                  decoration: InputDecoration(
-                    labelText: _word(context, 'effect'),
-                  ),
-                  items: [
-                    DropdownMenuItem(
-                      value: false,
-                      child: Text(_word(context, 'increaseDebt')),
+            width: fitContentWidth(dialogContext, 440),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: amount,
+                    autofocus: true,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
                     ),
-                    DropdownMenuItem(
-                      value: true,
-                      child: Text(_word(context, 'creditOrReduceDebt')),
+                    decoration: InputDecoration(
+                      labelText: _word(context, 'amount'),
                     ),
-                  ],
-                  onChanged: (value) =>
-                      setDialogState(() => isCredit = value ?? false),
-                ),
-                TextField(
-                  controller: reason,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: _word(context, 'reason'),
                   ),
-                ),
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: TextButton.icon(
-                    onPressed: () async {
-                      final picked = await showAppDatePicker(
-                        context: dialogContext,
-                        initialDate: date,
-                        firstDate: DateTime(2000),
-                        lastDate: CalendarService.shopToday(),
-                      );
-                      if (picked != null) setDialogState(() => date = picked);
-                    },
-                    icon: const Icon(Icons.calendar_today),
-                    label: Text(
-                      formatDate(
-                        date.toIso8601String(),
-                        locale: Localizations.localeOf(context).toLanguageTag(),
+                  DropdownButtonFormField<bool>(
+                    initialValue: isCredit,
+                    decoration: InputDecoration(
+                      labelText: _word(context, 'effect'),
+                    ),
+                    items: [
+                      DropdownMenuItem(
+                        value: false,
+                        child: Text(_word(context, 'increaseDebt')),
+                      ),
+                      DropdownMenuItem(
+                        value: true,
+                        child: Text(_word(context, 'creditOrReduceDebt')),
+                      ),
+                    ],
+                    onChanged: (value) =>
+                        setDialogState(() => isCredit = value ?? false),
+                  ),
+                  TextField(
+                    controller: reason,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      labelText: _word(context, 'reason'),
+                    ),
+                  ),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        final picked = await showAppDatePicker(
+                          context: dialogContext,
+                          initialDate: date,
+                          firstDate: DateTime(2000),
+                          lastDate: CalendarService.shopToday(),
+                        );
+                        if (picked != null) setDialogState(() => date = picked);
+                      },
+                      icon: const Icon(Icons.calendar_today),
+                      label: Text(
+                        formatDate(
+                          date.toIso8601String(),
+                          locale: Localizations.localeOf(context)
+                              .toLanguageTag(),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           actions: [
@@ -834,7 +838,7 @@ class _CustomerLedgerState extends State<CustomerLedger>
         final debt = (currentBalance + snapshot.data!.credit)
             .clamp(0, 1 << 60)
             .toInt();
-        final compact = MediaQuery.sizeOf(context).width < 840;
+        final compact = MediaQuery.sizeOf(context).width < 980;
         _coordinatedScroll = PrimaryScrollController.maybeOf(context);
         return CustomScrollView(
           controller: scroll,
@@ -933,9 +937,15 @@ class _CustomerLedgerState extends State<CustomerLedger>
                   const SizedBox(height: 8),
                   LayoutBuilder(
                     builder: (context, constraints) {
-                      final cardWidth = constraints.maxWidth < 660
-                          ? (constraints.maxWidth - 10) / 2
-                          : (constraints.maxWidth - 20) / 3;
+                      final columns = constraints.maxWidth < 460
+                          ? 1
+                          : constraints.maxWidth < 760
+                          ? 2
+                          : 3;
+                      final gap = 10.0;
+                      final cardWidth =
+                          (constraints.maxWidth - gap * (columns - 1)) /
+                          columns;
                       return Wrap(
                         spacing: 10,
                         runSpacing: 10,
@@ -972,101 +982,139 @@ class _CustomerLedgerState extends State<CustomerLedger>
                     },
                   ),
                   const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: compact ? 250 : 310,
-                        child: TextField(
-                          controller: search,
-                          decoration: InputDecoration(
-                            isDense: true,
-                            labelText: _word(context, 'searchLedger'),
-                            prefixIcon: const Icon(Icons.search),
-                            suffixIcon: search.text.isEmpty
-                                ? null
-                                : IconButton(
-                                    onPressed: () => setState(search.clear),
-                                    icon: const Icon(Icons.close),
-                                  ),
-                          ),
-                          onChanged: (_) => setState(() {}),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 180,
-                        child: DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          initialValue: type,
-                          decoration: InputDecoration(
-                            isDense: true,
-                            labelText: _word(context, 'transactionType'),
-                          ),
-                          items: [
-                            for (final value in [
-                              'All',
-                              'Charges',
-                              'Payments',
-                              'Credits',
-                              'Refunds',
-                              'Adjustments',
-                            ])
-                              DropdownMenuItem(
-                                value: value,
-                                child: Text(
-                                  _word(context, value.toLowerCase()),
-                                ),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final maxWidth = constraints.maxWidth;
+                      double fieldWidth(double preferred) =>
+                          preferred < maxWidth ? preferred : maxWidth;
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: fieldWidth(compact ? 250 : 310),
+                            child: TextField(
+                              controller: search,
+                              decoration: InputDecoration(
+                                isDense: true,
+                                labelText: _word(context, 'searchLedger'),
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon: search.text.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        onPressed: () => setState(search.clear),
+                                        icon: const Icon(Icons.close),
+                                      ),
                               ),
-                          ],
-                          onChanged: (value) =>
-                              setState(() => type = value ?? 'All'),
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _pickDateRange,
-                        icon: const Icon(Icons.date_range_outlined),
-                        label: Text(
-                          fromDate == null && toDate == null
-                              ? _word(context, 'dateRange')
-                              : '${fromDate == null ? '…' : formatDate(fromDate!.toIso8601String(), locale: Localizations.localeOf(context).toLanguageTag())} – ${toDate == null ? '…' : formatDate(toDate!.toIso8601String(), locale: Localizations.localeOf(context).toLanguageTag())}',
-                        ),
-                      ),
-                      TextButton(
-                        onPressed:
-                            search.text.isEmpty &&
-                                type == 'All' &&
-                                fromDate == null &&
-                                toDate == null
-                            ? null
-                            : () => setState(() {
-                                search.clear();
-                                type = 'All';
-                                fromDate = null;
-                                toDate = null;
-                              }),
-                        child: Text(_word(context, 'clearFilters')),
-                      ),
-                    ],
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ),
+                          SizedBox(
+                            width: fieldWidth(180),
+                            child: DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: type,
+                              decoration: InputDecoration(
+                                isDense: true,
+                                labelText: _word(context, 'transactionType'),
+                              ),
+                              items: [
+                                for (final value in [
+                                  'All',
+                                  'Charges',
+                                  'Payments',
+                                  'Credits',
+                                  'Refunds',
+                                  'Adjustments',
+                                ])
+                                  DropdownMenuItem(
+                                    value: value,
+                                    child: Text(
+                                      _word(context, value.toLowerCase()),
+                                    ),
+                                  ),
+                              ],
+                              onChanged: (value) =>
+                                  setState(() => type = value ?? 'All'),
+                            ),
+                          ),
+                          ConstrainedBox(
+                            constraints: BoxConstraints(maxWidth: maxWidth),
+                            child: OutlinedButton(
+                              onPressed: _pickDateRange,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.date_range_outlined),
+                                  const SizedBox(width: 8),
+                                  ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: (maxWidth - 72).clamp(
+                                        0.0,
+                                        maxWidth,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      fromDate == null && toDate == null
+                                          ? _word(context, 'dateRange')
+                                          : '${fromDate == null ? '…' : formatDate(fromDate!.toIso8601String(), locale: Localizations.localeOf(context).toLanguageTag())} – ${toDate == null ? '…' : formatDate(toDate!.toIso8601String(), locale: Localizations.localeOf(context).toLanguageTag())}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed:
+                                search.text.isEmpty &&
+                                    type == 'All' &&
+                                    fromDate == null &&
+                                    toDate == null
+                                ? null
+                                : () => setState(() {
+                                    search.clear();
+                                    type = 'All';
+                                    fromDate = null;
+                                    toDate = null;
+                                  }),
+                            child: Text(_word(context, 'clearFilters')),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${_word(context, 'broughtForward')}: ${formatMoney(broughtForward, locale: locale)}',
-                          textDirection: TextDirection.ltr,
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          '${_word(context, 'endOfPeriod')}: ${formatMoney(periodEnd, locale: locale)}',
-                          textAlign: TextAlign.end,
-                          textDirection: TextDirection.ltr,
-                        ),
-                      ),
-                    ],
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final brought = Text(
+                        '${_word(context, 'broughtForward')}: ${formatMoney(broughtForward, locale: locale)}',
+                        textDirection: TextDirection.ltr,
+                      );
+                      final period = Text(
+                        '${_word(context, 'endOfPeriod')}: ${formatMoney(periodEnd, locale: locale)}',
+                        textAlign: TextAlign.end,
+                        textDirection: TextDirection.ltr,
+                      );
+                      if (constraints.maxWidth < 520) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            brought,
+                            const SizedBox(height: 2),
+                            period,
+                          ],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          Expanded(child: brought),
+                          Expanded(child: period),
+                        ],
+                      );
+                    },
                   ),
                   if (search.text.isNotEmpty || type != 'All')
                     Padding(
@@ -1138,27 +1186,54 @@ class _CustomerLedgerState extends State<CustomerLedger>
         : balance < 0
         ? Icons.savings_outlined
         : Icons.check_circle_outline;
+    final today =
+        '${_word(context, 'todayBalance')}: ${formatMoney(balance.abs(), locale: locale)}';
+    final todayStyle = Theme.of(context).textTheme.bodySmall;
     return Card(
       color: color.withValues(alpha: .08),
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: Theme.of(context).textTheme.titleSmall
-                    ?.copyWith(color: color, fontWeight: FontWeight.w800),
-              ),
-            ),
-            Text(
-              '${_word(context, 'todayBalance')}: ${formatMoney(balance.abs(), locale: locale)}',
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final stacked = constraints.maxWidth < 520;
+            final message = Text(
+              label,
+              style: Theme.of(context).textTheme.titleSmall
+                  ?.copyWith(color: color, fontWeight: FontWeight.w800),
+            );
+            final todayText = Text(
+              today,
               textDirection: TextDirection.ltr,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: todayStyle,
+            );
+            if (stacked) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(icon, color: color),
+                      const SizedBox(width: 10),
+                      Expanded(child: message),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  todayText,
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Icon(icon, color: color),
+                const SizedBox(width: 10),
+                Expanded(child: message),
+                const SizedBox(width: 8),
+                Flexible(child: todayText),
+              ],
+            );
+          },
         ),
       ),
     );
