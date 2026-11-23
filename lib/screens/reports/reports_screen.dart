@@ -1837,34 +1837,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             .map((row) => Map<String, Object?>.from(row))
             .toList();
         final fields = _fieldsFor(type);
-        final totalRow = type == 'fabric'
-            ? <String, Object?>{
-                'bill_number': _l10n.reportGrandTotal,
-                'quantity_meters': totals['net_meters'],
-                'net_revenue': totals['net_revenue'],
-                'recorded_cost': totals['recorded_cost'],
-                'gross_profit': totals['gross_profit'],
-                'profit_per_meter':
-                    (totals['net_meters'] as num? ?? 0) > 0 &&
-                        totals['gross_profit'] is num
-                    ? ((totals['gross_profit'] as num) /
-                              (totals['net_meters'] as num))
-                          .round()
-                    : null,
-                'cost_status': (totals['missing_cost_lines'] as num? ?? 0) > 0
-                    ? 'incomplete'
-                    : 'recorded',
-              }
-            : <String, Object?>{
-                'bill_number': _l10n.reportGrandTotal,
-                'quantity': totals['garment_quantity'],
-                'stitching_revenue': totals['net_stitching_revenue'],
-                'direct_cost': totals['direct_stitching_costs'],
-                'gross_profit': totals['gross_profit'],
-                'cost_status': totals['profit_status'] == 'complete'
-                    ? 'recorded'
-                    : totals['profit_status'],
-              };
+        final totalRow = _totalRow(type, totals);
         output.add('');
         _csvRow(output, [
           _l10n.reportSection,
@@ -2022,34 +1995,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         }
         buffer.write('</tr>');
       }
-      final totalRow = type == 'fabric'
-          ? <String, Object?>{
-              'bill_number': _l10n.reportGrandTotal,
-              'quantity_meters': totals['net_meters'],
-              'net_revenue': totals['net_revenue'],
-              'recorded_cost': totals['recorded_cost'],
-              'gross_profit': totals['gross_profit'],
-              'profit_per_meter':
-                  (totals['net_meters'] as num? ?? 0) > 0 &&
-                      totals['gross_profit'] is num
-                  ? ((totals['gross_profit'] as num) /
-                            (totals['net_meters'] as num))
-                        .round()
-                  : null,
-              'cost_status': (totals['missing_cost_lines'] as num? ?? 0) > 0
-                  ? 'incomplete'
-                  : 'recorded',
-            }
-          : <String, Object?>{
-              'bill_number': _l10n.reportGrandTotal,
-              'quantity': totals['garment_quantity'],
-              'stitching_revenue': totals['net_stitching_revenue'],
-              'direct_cost': totals['direct_stitching_costs'],
-              'gross_profit': totals['gross_profit'],
-              'cost_status': totals['profit_status'] == 'complete'
-                  ? 'recorded'
-                  : totals['profit_status'],
-            };
+      final totalRow = _totalRow(type, totals);
       buffer.write('<tr class="grand">');
       for (final field in columns) {
         buffer.write(

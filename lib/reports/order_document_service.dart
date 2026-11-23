@@ -13,6 +13,7 @@ import '../constants/measurement_fields.dart';
 import '../constants/design_features.dart';
 import '../core/formatters.dart';
 import '../data/shop_database.dart';
+import '../l10n/app_localizations_extensions.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/garment.dart';
 
@@ -531,10 +532,10 @@ void _addMeasurementSheet(
                           : '-',
                       bold: true,
                     ),
-                    _sheetCell(_measurementLabel(l10n, name)),
+                    _sheetCell(l10n.measurementLabel(name)),
                   ]
                 : [
-                    _sheetCell(_measurementLabel(l10n, name)),
+                    _sheetCell(l10n.measurementLabel(name)),
                     _sheetCell(
                       name == 'Additional notes'
                           ? snapshot[name] ?? '-'
@@ -631,7 +632,7 @@ void _addMeasurementSheet(
               children: [
                 pw.Expanded(
                   child: pw.Text(
-                    '${_garmentName(l10n, garment)} ${l10n.garment} ${index + 1}',
+                    '${l10n.garmentName(garment)} ${l10n.garment} ${index + 1}',
                     style: pw.TextStyle(
                       fontSize: 11,
                       fontWeight: pw.FontWeight.bold,
@@ -800,8 +801,7 @@ void _addCustomerBill(
         pw.SizedBox(height: 3),
         for (final line in lines)
           _billLine(
-            _garmentName(
-              l10n,
+            l10n.garmentName(
               garmentFromKey(line['garment']) ?? Garment.shalwar,
             ),
             '${l10n.quantity}: ${line['quantity']} · ${l10n.pricePerItem}: ${formatPaymentMoney(line['price_each'] as int? ?? 0, locale: locale)}',
@@ -1294,37 +1294,6 @@ Map<String, Object?> _decodeStyle(Object? raw) {
   }
   return const {};
 }
-
-String _garmentName(AppLocalizations l10n, Garment garment) =>
-    switch (garment) {
-      Garment.shalwar => l10n.shalwar,
-      Garment.waistcoat => l10n.waistcoat,
-      Garment.coat => l10n.coat,
-    };
-
-String _measurementLabel(AppLocalizations l10n, String value) =>
-    switch (value) {
-      'Kameez length' => l10n.kameezLength,
-      'Shoulder width' => l10n.shoulderWidth,
-      'Sleeve length' => l10n.sleeveLength,
-      'Chest' => l10n.chest,
-      'Waist' => l10n.waist,
-      'Hip / seat' => l10n.hipSeat,
-      'Neck / collar' => l10n.neckCollar,
-      'Neck' => l10n.neck,
-      'Upper arm' => l10n.upperArm,
-      'Cuff / wrist' => l10n.cuffWrist,
-      'Shalwar length' => l10n.shalwarLength,
-      'Shalwar waist' => l10n.shalwarWaist,
-      'Thigh' => l10n.thigh,
-      'Bottom opening' => l10n.bottomOpening,
-      'Waistcoat length' => l10n.waistcoatLength,
-      'Armhole' => l10n.armhole,
-      'Coat length' => l10n.coatLength,
-      'Wrist / sleeve opening' => l10n.wristSleeveOpening,
-      'Additional notes' => l10n.additionalNotes,
-      _ => value,
-    };
 
 String _displayDate(Object? raw, String locale) {
   if (raw == null || raw.toString().isEmpty) return '—';

@@ -140,8 +140,9 @@ class AppCommandRegistry extends ChangeNotifier {
     for (final entry in registrations) {
       if (!_active(entry.value)) continue;
       for (final command in entry.value.commands) {
-        if (command.id == id || command.aliases.contains(id))
+        if (command.id == id || command.aliases.contains(id)) {
           return (entry.key, entry.value, command);
+        }
       }
     }
     return null;
@@ -165,8 +166,9 @@ class AppCommandRegistry extends ChangeNotifier {
     for (final registration in _registrations.values.toList().reversed) {
       if (_active(registration) &&
           registration.beforeLeave != null &&
-          !await registration.beforeLeave!())
+          !await registration.beforeLeave!()) {
         return false;
+      }
     }
     return true;
   }
@@ -174,8 +176,9 @@ class AppCommandRegistry extends ChangeNotifier {
   Future<void> invoke(String id) async {
     final navigator = observer.navigator;
     if (id == CommandKey.palette || id == CommandKey.help) {
-      if (navigator != null && !paletteOpen)
+      if (navigator != null && !paletteOpen) {
         await _showPalette(navigator.context, help: id == CommandKey.help);
+      }
       return;
     }
     final found = resolve(id);
@@ -282,8 +285,9 @@ class AppCommandRegistry extends ChangeNotifier {
         if (!_active(registration)) continue;
         for (final command in registration.commands) {
           if (command.id.startsWith('go.') &&
-              resolve(command.id.substring(3)) != null)
+              resolve(command.id.substring(3)) != null) {
             continue;
+          }
           entries[command.id] = (
             command.title ?? commandText(context, command.id),
             commandShortcutLabels[command.id] ??
@@ -416,8 +420,9 @@ class AppCommandRegistry extends ChangeNotifier {
     }
     if (chosen != null &&
         chosen != CommandKey.help &&
-        chosen != CommandKey.palette)
+        chosen != CommandKey.palette) {
       await invoke(chosen);
+    }
   }
 
   @override
@@ -638,11 +643,13 @@ class _CommandShortcutManager extends ShortcutManager {
   KeyEventResult handleKeypress(BuildContext context, KeyEvent event) {
     final keyboard = HardwareKeyboard.instance;
     // AltGr is commonly reported as Ctrl+Alt on Windows. Never claim it.
-    if (keyboard.isAltPressed || keyboard.isMetaPressed)
+    if (keyboard.isAltPressed || keyboard.isMetaPressed) {
       return KeyEventResult.ignored;
+    }
     if (event.logicalKey == LogicalKeyboardKey.delete &&
-        commandTextFieldFocused)
+        commandTextFieldFocused) {
       return KeyEventResult.ignored;
+    }
     if (event is KeyRepeatEvent) return KeyEventResult.ignored;
     return super.handleKeypress(context, event);
   }
@@ -926,8 +933,9 @@ Future<Map<String, Object?>?> pickCommandRecord(
                         ),
                         onChanged: (_) => update(() => active = 0),
                         onSubmitted: (_) {
-                          if (matches.isNotEmpty)
+                          if (matches.isNotEmpty) {
                             Navigator.pop(ctx, matches[active]);
+                          }
                         },
                       ),
                     ),
@@ -984,8 +992,9 @@ Future<Map<String, Object?>?> pickCommandRecord(
         },
       ),
     );
-    if (result != null && context.mounted)
+    if (result != null && context.mounted) {
       AppCommandRegistry.maybeOf(context)?.select(kind, result);
+    }
     return result;
   } finally {
     query.dispose();
@@ -1081,13 +1090,14 @@ String? commandEligibility(
 ) {
   final id = AppCommandRegistry.maybeOf(context)?.selected(kind)?['id'];
   final record = rows.where((row) => row['id'] == id).firstOrNull;
-  if (record != null && !eligible(record))
+  if (record != null && !eligible(record)) {
     return localizedCommandText(
       context,
       explanation.$1,
       explanation.$2,
       explanation.$3,
     );
+  }
   if (record == null && rows.every((row) => !eligible(row))) {
     return localizedCommandText(
       context,

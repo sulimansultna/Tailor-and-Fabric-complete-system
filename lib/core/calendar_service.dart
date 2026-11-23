@@ -6,12 +6,12 @@ class CalendarService {
   static String activeCalendar = solarHijri;
   static String activeLocale = 'ps';
   static bool showBothDates = false;
+  static const _kabulOffset = Duration(hours: 4, minutes: 30);
+  static final _dateOnlyPattern = RegExp(r'^\d{4}-\d{2}-\d{2}$');
 
   /// Date-only operations use Kabul when the shop has no timezone setting.
   static DateTime shopToday() {
-    final kabulNow = DateTime.now().toUtc().add(
-      const Duration(hours: 4, minutes: 30),
-    );
+    final kabulNow = DateTime.now().toUtc().add(_kabulOffset);
     return DateTime(kabulNow.year, kabulNow.month, kabulNow.day);
   }
 
@@ -140,15 +140,13 @@ class CalendarService {
       ? 30
       : 29;
   static bool isLeapYear(int year) => _jalCal(year).leap == 0;
-  static String solarMonthName(int month, String locale) {
+  static String _languageCode(String locale) {
     final lang = locale.split(RegExp('[-_]')).first;
-    final normalized = lang == 'fa'
-        ? 'fa'
-        : lang == 'ps'
-        ? 'ps'
-        : 'en';
-    return _months[normalized]![month - 1];
+    return _months.containsKey(lang) ? lang : 'en';
   }
+
+  static String solarMonthName(int month, String locale) =>
+      _months[_languageCode(locale)]![month - 1];
 
   static String format(
     DateTime date, {
@@ -156,26 +154,12 @@ class CalendarService {
     required String locale,
     bool includeYear = true,
   }) {
-    if (calendar != solarHijri) {
-      final lang = locale.split(RegExp('[-_]')).first;
-      final normalized = lang == 'fa'
-          ? 'fa'
-          : lang == 'ps'
-          ? 'ps'
-          : 'en';
-      final value =
-          '${date.day} ${_gregorianMonths[normalized]![date.month - 1]}${includeYear ? ' ${date.year}' : ''}';
-      return value;
-    }
-    final solar = fromGregorian(date);
-    final lang = locale.split(RegExp('[-_]')).first;
-    final normalized = lang == 'fa'
-        ? 'fa'
-        : lang == 'ps'
-        ? 'ps'
-        : 'en';
-    final months = _months[normalized]!;
-    return '${solar.day} ${months[solar.month - 1]}${includeYear ? ' ${solar.year}' : ''}';
+    final solar = calendar == solarHijri ? fromGregorian(date) : null;
+    final day = solar?.day ?? date.day;
+    final month = solar?.month ?? date.month;
+    final year = solar?.year ?? date.year;
+    final months = solar == null ? _gregorianMonths : _months;
+    return '$day ${months[_languageCode(locale)]![month - 1]}${includeYear ? ' $year' : ''}';
   }
 
   static String formatActive(DateTime date, {required String locale}) {
@@ -185,7 +169,7 @@ class CalendarService {
         ? gregorian
         : solarHijri;
     final secondary = format(date, calendar: secondaryCalendar, locale: locale);
-    final language = locale.split(RegExp('[-_]')).first;
+    final language = _languageCode(locale);
     final label = secondaryCalendar == solarHijri
         ? (language == 'ps'
               ? 'لمریز'
@@ -216,7 +200,7 @@ class CalendarService {
     final parsed = DateTime.tryParse(value);
     if (parsed == null) return null;
     // ISO date-only values stay date-only; timestamp values retain their instant.
-    if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) return value;
+    if (_dateOnlyPattern.hasMatch(value)) return value;
     return DateTime(
       parsed.year,
       parsed.month,
@@ -227,14 +211,14 @@ class CalendarService {
   /// Convert stored timestamps to the Kabul wall date for display. Date-only
   /// database values are kept as calendar dates and never timezone shifted.
   static DateTime? dateForDisplay(String value) {
-    final dateOnly = RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value);
+    final dateOnly = _dateOnlyPattern.hasMatch(value);
     final parsed = DateTime.tryParse(value);
     if (parsed == null) return null;
     final hasExplicitOffset = RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(value);
     final displayValue = dateOnly
         ? parsed
         : parsed.isUtc || hasExplicitOffset
-        ? parsed.toUtc().add(const Duration(hours: 4, minutes: 30))
+        ? parsed.toUtc().add(_kabulOffset)
         : parsed;
     return DateTime(displayValue.year, displayValue.month, displayValue.day);
   }

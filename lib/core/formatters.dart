@@ -73,7 +73,7 @@ String normalizeLocalizedDigits(String value) {
 }
 
 int? parseMoneyMinor(String value) {
-  final normalized = normalizeLocalizedDigits(value).replaceAll(',', '').trim();
+  final normalized = normalizeLocalizedDigits(value).trim();
   if (!RegExp(r'^\d+(?:\.\d{1,2})?$').hasMatch(normalized)) return null;
   final parts = normalized.split('.');
   final whole = int.tryParse(parts.first);

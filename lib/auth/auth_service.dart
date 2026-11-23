@@ -10,7 +10,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 const _algorithmId = 'pbkdf2-hmac-sha256-v1';
 const _sessionStorageKey = 'tailor_shop_owner_session_v1';
 const _initialUsername = 'Khayat';
-const _initialPassword = '123456';
+const _initialPassword = '123456789';
 
 abstract interface class SecureTokenStore {
   Future<String?> read();
@@ -107,7 +107,7 @@ class AuthService {
   }) async {
     final database = await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onConfigure: (db) async => db.execute('PRAGMA foreign_keys=ON'),
       onCreate: (db, version) async {
         await db.execute('''CREATE TABLE owner_account (
@@ -139,8 +139,9 @@ class AuthService {
         )''');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        if (oldVersion < 2) {
-          // Replace every previous local owner credential and revoke sessions.
+        if (oldVersion < 3) {
+          // One-time requested reset to Khayat and the new temporary password.
+          // Later launches preserve credentials changed by the owner.
           await db.delete('remembered_sessions');
           await db.delete('owner_account');
           await db.update('auth_throttle', {

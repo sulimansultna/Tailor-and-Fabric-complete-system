@@ -1439,7 +1439,7 @@ Future<_OrderMeasurementsResult?> _reviewOrderMeasurements(
                       children: [
                         Expanded(
                           child: Text(
-                            _localizedMeasurementLabel(l10n, name),
+                            l10n.measurementLabel(name),
                             style: Theme.of(dialogContext).textTheme.bodySmall,
                           ),
                         ),
@@ -1479,7 +1479,7 @@ Future<_OrderMeasurementsResult?> _reviewOrderMeasurements(
           return AlertDialog(
             insetPadding: const EdgeInsets.all(16),
             title: Text(
-              '${l10n.reviewMeasurements}: ${_localizedGarment(l10n, garment)}',
+              '${l10n.reviewMeasurements}: ${l10n.garmentName(garment)}',
             ),
             content: SizedBox(
               width: (MediaQuery.sizeOf(dialogContext).width - 64).clamp(
@@ -1675,7 +1675,7 @@ Future<_OrderSaveChoice?> _showOrderConfirmation(
                   children: [
                     Expanded(
                       child: Text(
-                        '${_localizedGarment(l10n, line.garment)} · ${l10n.quantity}: ${line.count.text}',
+                        '${l10n.garmentName(line.garment)} · ${l10n.quantity}: ${line.count.text}',
                         style: Theme.of(dialogContext).textTheme.titleSmall,
                       ),
                     ),
@@ -1716,13 +1716,13 @@ Future<_OrderSaveChoice?> _showOrderConfirmation(
                     for (final entry in line.snapshot.entries)
                       if (entry.key == 'Additional notes')
                         Text(
-                          '${_localizedMeasurementLabel(l10n, entry.key)}: ${entry.value}',
+                          '${l10n.measurementLabel(entry.key)}: ${entry.value}',
                         )
                       else
                         Chip(
                           visualDensity: VisualDensity.compact,
                           label: Text(
-                            '${_localizedMeasurementLabel(l10n, entry.key)}: ${entry.value} ${line.measurementUnit}',
+                            '${l10n.measurementLabel(entry.key)}: ${entry.value} ${line.measurementUnit}',
                           ),
                         ),
                     if (line.snapshot.isEmpty) Text(l10n.noMeasurementsYet),
@@ -1846,7 +1846,7 @@ Future<_OrderSaveChoice?> _showOrderConfirmation(
                                 Align(
                                   alignment: AlignmentDirectional.centerStart,
                                   child: Text(
-                                    '${_localizedGarment(l10n, line.garment)} · ${l10n.quantity}: ${line.count.text}',
+                                    '${l10n.garmentName(line.garment)} · ${l10n.quantity}: ${line.count.text}',
                                   ),
                                 ),
                               _moneySummaryLine(
@@ -2146,37 +2146,6 @@ Future<void> showSavedOrderPrintOptions(
     },
   );
 }
-
-String _localizedGarment(AppLocalizations l10n, Garment garment) =>
-    switch (garment) {
-      Garment.shalwar => l10n.shalwar,
-      Garment.waistcoat => l10n.waistcoat,
-      Garment.coat => l10n.coat,
-    };
-
-String _localizedMeasurementLabel(AppLocalizations l10n, String name) =>
-    switch (name) {
-      'Kameez length' => l10n.kameezLength,
-      'Shoulder width' => l10n.shoulderWidth,
-      'Sleeve length' => l10n.sleeveLength,
-      'Chest' => l10n.chest,
-      'Waist' => l10n.waist,
-      'Hip / seat' => l10n.hipSeat,
-      'Neck / collar' => l10n.neckCollar,
-      'Neck' => l10n.neck,
-      'Upper arm' => l10n.upperArm,
-      'Cuff / wrist' => l10n.cuffWrist,
-      'Shalwar length' => l10n.shalwarLength,
-      'Shalwar waist' => l10n.shalwarWaist,
-      'Thigh' => l10n.thigh,
-      'Bottom opening' => l10n.bottomOpening,
-      'Waistcoat length' => l10n.waistcoatLength,
-      'Armhole' => l10n.armhole,
-      'Coat length' => l10n.coatLength,
-      'Wrist / sleeve opening' => l10n.wristSleeveOpening,
-      'Additional notes' => l10n.additionalNotes,
-      _ => name,
-    };
 
 class _OrderEntry {
   _OrderEntry(this.garment) {

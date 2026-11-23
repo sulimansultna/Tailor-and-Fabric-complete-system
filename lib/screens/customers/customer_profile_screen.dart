@@ -125,8 +125,9 @@ class _CustomerProfileState extends State<CustomerProfileScreen>
   @override
   Widget build(BuildContext context) {
     final registry = AppCommandRegistry.maybeOf(context);
-    if (registry?.selected('customer')?['id'] != customer['id'])
+    if (registry?.selected('customer')?['id'] != customer['id']) {
       registry?.select('customer', customer);
+    }
     final l10n = context.l10n;
     final locale = Localizations.localeOf(context).toLanguageTag();
     final width = MediaQuery.sizeOf(context).width;

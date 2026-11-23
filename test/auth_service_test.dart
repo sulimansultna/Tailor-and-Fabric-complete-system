@@ -33,7 +33,7 @@ void main() {
   Future<String> finishFirstRun() async {
     final initial = await auth.login(
       username: 'Khayat',
-      password: '123456',
+      password: '123456789',
       rememberMe: false,
     );
     expect(initial.access, LoginAccess.initialPasswordChange);
@@ -47,7 +47,7 @@ void main() {
   test('seeds starter account once and replaces it with salted hash', () async {
     final row = (await auth.db.query('owner_account')).single;
     expect(row['username'], 'Khayat');
-    expect(row['password_hash'], isNot('123456'));
+    expect(row['password_hash'], isNot('123456789'));
     expect(row['password_salt'], isNotEmpty);
     expect(row['hash_algorithm'], 'pbkdf2-hmac-sha256-v1');
     expect(row['must_change_password'], 1);
@@ -70,10 +70,87 @@ void main() {
       saved['password_hash'],
     );
     await expectLater(
-      auth.login(username: 'Khayat', password: '123456', rememberMe: false),
+      auth.login(username: 'Khayat', password: '123456789', rememberMe: false),
       throwsA(isA<AuthFailure>()),
     );
   });
+
+  for (final oldVersion in [1, 2]) {
+    test('resets version $oldVersion credentials once on upgrade', () async {
+      final oldRecoveryCode = await finishFirstRun();
+      await auth.changeUsername(
+        currentPassword: 'first-owner-pass',
+        newUsername: 'PreviousOwner',
+      );
+      await auth.login(
+        username: 'PreviousOwner',
+        password: 'first-owner-pass',
+        rememberMe: true,
+      );
+      await auth.db.update('auth_throttle', {
+        'failed_attempts': 5,
+        'cooldown_until': DateTime.now()
+            .toUtc()
+            .add(const Duration(minutes: 10))
+            .toIso8601String(),
+      });
+      await auth.db.setVersion(oldVersion);
+      await auth.close();
+
+      auth = await AuthService.openAt(
+        '${directory.path}${Platform.pathSeparator}owner_auth.db',
+        tokens,
+        passwordIterations: 10000,
+      );
+      expect(await auth.db.getVersion(), 3);
+      expect((await auth.accountInfo()).username, 'Khayat');
+      expect(await auth.db.query('remembered_sessions'), isEmpty);
+      expect(await auth.restoreRememberedSession(), isFalse);
+      expect(tokens.value, isNull);
+      expect(await auth.cooldownMessageSeconds, isNull);
+      expect(await auth.hasRecoveryCode(), isFalse);
+      await expectLater(
+        auth.login(
+          username: 'PreviousOwner',
+          password: 'first-owner-pass',
+          rememberMe: false,
+        ),
+        throwsA(isA<AuthFailure>()),
+      );
+      await expectLater(
+        auth.login(username: 'Khayat', password: '123456', rememberMe: false),
+        throwsA(isA<AuthFailure>()),
+      );
+      await expectLater(
+        auth.resetPasswordWithRecovery(
+          username: 'Khayat',
+          recoveryCode: oldRecoveryCode,
+          newPassword: 'unexpected-pass',
+        ),
+        throwsA(isA<AuthFailure>()),
+      );
+      await finishFirstRun();
+      await auth.changeUsername(
+        currentPassword: 'first-owner-pass',
+        newUsername: 'UpdatedOwner',
+      );
+      await auth.close();
+
+      auth = await AuthService.openAt(
+        '${directory.path}${Platform.pathSeparator}owner_auth.db',
+        tokens,
+        passwordIterations: 10000,
+      );
+      expect(
+        (await auth.login(
+          username: 'UpdatedOwner',
+          password: 'first-owner-pass',
+          rememberMe: false,
+        )).access,
+        LoginAccess.ready,
+      );
+    });
+  }
 
   test(
     'denies invalid login and remembers startup until logout or expiry',
@@ -209,7 +286,7 @@ void main() {
       );
     }
     await expectLater(
-      auth.login(username: 'Khayat', password: '123456', rememberMe: false),
+      auth.login(username: 'Khayat', password: '123456789', rememberMe: false),
       throwsA(isA<AuthFailure>().having((e) => e.code, 'code', 'cooldown')),
     );
   });
@@ -220,7 +297,7 @@ void main() {
       final controller = AuthController(auth);
       await controller.login(
         username: 'Khayat',
-        password: '123456',
+        password: '123456789',
         rememberMe: true,
       );
       expect(controller.state, AuthViewState.initialPasswordChange);

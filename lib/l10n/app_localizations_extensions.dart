@@ -8,11 +8,7 @@ extension AppLocalizationsBuildContext on BuildContext {
 }
 
 String localizedGarment(BuildContext context, Garment garment) =>
-    switch (garment) {
-      Garment.shalwar => context.l10n.shalwar,
-      Garment.waistcoat => context.l10n.waistcoat,
-      Garment.coat => context.l10n.coat,
-    };
+    context.l10n.garmentName(garment);
 
 String localizedStatus(BuildContext context, String value) => switch (value) {
   'Received' => context.l10n.received,
@@ -33,28 +29,38 @@ String localizedGarmentKey(BuildContext context, String value) =>
     };
 
 String localizedMeasurementLabel(BuildContext context, String value) =>
-    switch (value) {
-      'Kameez length' => context.l10n.kameezLength,
-      'Shoulder width' => context.l10n.shoulderWidth,
-      'Sleeve length' => context.l10n.sleeveLength,
-      'Chest' => context.l10n.chest,
-      'Waist' => context.l10n.waist,
-      'Hip / seat' => context.l10n.hipSeat,
-      'Neck / collar' => context.l10n.neckCollar,
-      'Neck' => context.l10n.neck,
-      'Upper arm' => context.l10n.upperArm,
-      'Cuff / wrist' => context.l10n.cuffWrist,
-      'Shalwar length' => context.l10n.shalwarLength,
-      'Shalwar waist' => context.l10n.shalwarWaist,
-      'Thigh' => context.l10n.thigh,
-      'Bottom opening' => context.l10n.bottomOpening,
-      'Waistcoat length' => context.l10n.waistcoatLength,
-      'Armhole' => context.l10n.armhole,
-      'Coat length' => context.l10n.coatLength,
-      'Wrist / sleeve opening' => context.l10n.wristSleeveOpening,
-      'Additional notes' => context.l10n.additionalNotes,
-      _ => value,
-    };
+    context.l10n.measurementLabel(value);
+
+extension AppLocalizationsLabels on AppLocalizations {
+  String garmentName(Garment garment) => switch (garment) {
+    Garment.shalwar => shalwar,
+    Garment.waistcoat => waistcoat,
+    Garment.coat => coat,
+  };
+
+  String measurementLabel(String value) => switch (value) {
+    'Kameez length' => kameezLength,
+    'Shoulder width' => shoulderWidth,
+    'Sleeve length' => sleeveLength,
+    'Chest' => chest,
+    'Waist' => waist,
+    'Hip / seat' => hipSeat,
+    'Neck / collar' => neckCollar,
+    'Neck' => neck,
+    'Upper arm' => upperArm,
+    'Cuff / wrist' => cuffWrist,
+    'Shalwar length' => shalwarLength,
+    'Shalwar waist' => shalwarWaist,
+    'Thigh' => thigh,
+    'Bottom opening' => bottomOpening,
+    'Waistcoat length' => waistcoatLength,
+    'Armhole' => armhole,
+    'Coat length' => coatLength,
+    'Wrist / sleeve opening' => wristSleeveOpening,
+    'Additional notes' => additionalNotes,
+    _ => value,
+  };
+}
 
 String localizedMeasurementHint(BuildContext context, String value) =>
     switch (value) {
