@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../commands/app_commands.dart';
 
 import '../../widgets/horizontal_table.dart';
+import '../../widgets/responsive_layout.dart';
 
 import '../../core/formatters.dart';
 import '../../data/shop_database.dart';
@@ -132,10 +133,12 @@ class _CustomerProfileState extends State<CustomerProfileScreen>
     final locale = Localizations.localeOf(context).toLanguageTag();
     final width = MediaQuery.sizeOf(context).width;
     final compact = width < 900;
+    final dense = ResponsiveLayout.isCompactWindow(context);
+    final pagePadding = dense ? 16.0 : 28.0;
     final customerName = customer['name'] as String? ?? '';
     final code = customer['code'] as String? ?? 'C${customer['id']}';
     final phone = customer['phone'] as String? ?? '';
-    return CommandScope(
+    final content = CommandScope(
       priority: 20,
       commands: [
         AppCommand('customers.edit', _editCustomer, aliases: [CommandKey.edit]),
@@ -148,6 +151,11 @@ class _CustomerProfileState extends State<CustomerProfileScreen>
       ],
       child: Scaffold(
         appBar: AppBar(
+          toolbarHeight: dense ? 52 : null,
+          titleTextStyle: dense
+              ? Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700)
+              : null,
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -198,9 +206,9 @@ class _CustomerProfileState extends State<CustomerProfileScreen>
             headerSliverBuilder: (context, innerBoxIsScrolled) => [
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(
-                  compact ? 16 : 28,
-                  10,
-                  compact ? 16 : 28,
+                  pagePadding,
+                  dense ? 6 : 10,
+                  pagePadding,
                   0,
                 ),
                 sliver: SliverToBoxAdapter(
@@ -254,7 +262,7 @@ class _CustomerProfileState extends State<CustomerProfileScreen>
                           ],
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: dense ? 8 : 12),
                       _FinancialSummary(
                         future: financials,
                         locale: locale,
@@ -266,23 +274,22 @@ class _CustomerProfileState extends State<CustomerProfileScreen>
               ),
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(
-                  compact ? 16 : 28,
-                  14,
-                  compact ? 16 : 28,
+                  pagePadding,
+                  dense ? 10 : 14,
+                  pagePadding,
                   4,
                 ),
                 sliver: SliverToBoxAdapter(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final dense = constraints.maxWidth < 1040;
-                      final columns = !dense
-                          ? 3
-                          : constraints.maxWidth >= 780
-                          ? 3
-                          : constraints.maxWidth >= 520
-                          ? 2
-                          : 1;
                       final gap = dense ? 10.0 : 12.0;
+                      final columns = ResponsiveLayout.columns(
+                        context,
+                        constraints.maxWidth,
+                        minWidth: 250,
+                        maxColumns: 3,
+                        gap: gap,
+                      );
                       final cardWidth = columns == 1
                           ? constraints.maxWidth
                           : (constraints.maxWidth - gap * (columns - 1)) /
@@ -298,7 +305,7 @@ class _CustomerProfileState extends State<CustomerProfileScreen>
                                 database: widget.database,
                                 customer: customer,
                                 garment: garment,
-                                dense: dense,
+                                dense: dense || cardWidth < 330,
                               ),
                             ),
                         ],
@@ -312,29 +319,34 @@ class _CustomerProfileState extends State<CustomerProfileScreen>
                   context,
                 ),
                 sliver: SliverPadding(
-                  padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 28),
+                  padding: EdgeInsets.symmetric(horizontal: pagePadding),
                   sliver: SliverPersistentHeader(
                     pinned: true,
                     delegate: FixedTableHeader(
-                      height: compact ? 48 : 80,
+                      height: dense ? 48 : 80,
                       child: Material(
                         color: Theme.of(context).scaffoldBackgroundColor,
                         child: TabBar(
                           controller: tabs,
-                          isScrollable: compact,
+                          isScrollable:
+                              compact ||
+                              (dense &&
+                                  width <
+                                      1100 *
+                                          ResponsiveLayout.textFactor(context)),
                           tabs: [
                             _sectionTab(
-                              compact: compact,
+                              compact: dense,
                               icon: Icons.receipt_long_outlined,
                               label: l10n.customerOrders,
                             ),
                             _sectionTab(
-                              compact: compact,
+                              compact: dense,
                               icon: Icons.account_balance_wallet_outlined,
                               label: l10n.customerLedger,
                             ),
                             _sectionTab(
-                              compact: compact,
+                              compact: dense,
                               icon: Icons.person_outline,
                               label: l10n.customerInformation,
                             ),
@@ -348,9 +360,9 @@ class _CustomerProfileState extends State<CustomerProfileScreen>
             ],
             body: Padding(
               padding: EdgeInsets.fromLTRB(
-                compact ? 12 : 24,
+                dense ? 12 : 24,
                 4,
-                compact ? 12 : 24,
+                dense ? 12 : 24,
                 12,
               ),
               child: TabBarView(
@@ -382,7 +394,41 @@ class _CustomerProfileState extends State<CustomerProfileScreen>
         ),
       ),
     );
+    return Theme(
+      data: dense ? _compactProfileTheme(Theme.of(context)) : Theme.of(context),
+      child: content,
+    );
   }
+}
+
+ThemeData _compactProfileTheme(ThemeData theme) {
+  const controls = ButtonStyle(
+    visualDensity: VisualDensity.compact,
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    minimumSize: WidgetStatePropertyAll(Size(36, 36)),
+    padding: WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    ),
+  );
+  return theme.copyWith(
+    visualDensity: VisualDensity.compact,
+    filledButtonTheme: FilledButtonThemeData(
+      style: theme.filledButtonTheme.style?.merge(controls) ?? controls,
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: theme.textButtonTheme.style?.merge(controls) ?? controls,
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: theme.outlinedButtonTheme.style?.merge(controls) ?? controls,
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: theme.iconButtonTheme.style?.merge(controls) ?? controls,
+    ),
+    inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    ),
+  );
 }
 
 class _FinancialSummary extends StatelessWidget {
@@ -419,10 +465,10 @@ class _FinancialSummary extends StatelessWidget {
       final paid = snapshot.data!['paid']!;
       final balance = snapshot.data!['balance']!;
       final credit = snapshot.data!['credit']!;
-      final windowCompact = MediaQuery.sizeOf(context).width < 900;
+      final windowCompact = ResponsiveLayout.isCompactWindow(context);
       return Card(
         child: Padding(
-          padding: EdgeInsets.all(windowCompact ? 10 : 16),
+          padding: EdgeInsets.all(windowCompact ? 8 : 16),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 700;

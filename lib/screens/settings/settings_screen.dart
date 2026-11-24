@@ -77,7 +77,7 @@ class _SettingsPageState extends State<SettingsScreen> {
       final registry = AppCommandRegistry.maybeOf(context);
       if (registry != null) await registry.forward(() async {}, 'settings.signOut');
     }),
-    AppCommand(CommandKey.refresh, () async { final next = widget.database.settings(); setState(() => future = next); await next; }),
+    AppCommand(CommandKey.refresh, _reloadSettings),
   ];
 
   @override
@@ -103,10 +103,19 @@ class _SettingsPageState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _reloadSettings() async {
+    if (!mounted) return;
+    final next = widget.database.settings();
+    setState(() {
+      future = next;
+    });
+    await next;
+  }
+
   Future<void> _saveOrderPrintSetting(String key, String value) async {
     try {
       await widget.database.saveSettings({key: value});
-      if (mounted) setState(() => future = widget.database.settings());
+      await _reloadSettings();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -151,8 +160,7 @@ class _SettingsPageState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 14),
                   FilledButton.icon(
-                    onPressed: () =>
-                        setState(() => future = widget.database.settings()),
+                    onPressed: _reloadSettings,
                     icon: const Icon(Icons.refresh),
                     label: Text(l10n.retry),
                   ),
@@ -222,9 +230,7 @@ class _SettingsPageState extends State<SettingsScreen> {
                             ),
                             IconButton(
                               tooltip: l10n.refresh,
-                              onPressed: () => setState(
-                                () => future = widget.database.settings(),
-                              ),
+                              onPressed: _reloadSettings,
                               icon: const Icon(Icons.refresh_outlined),
                             ),
                           ],
@@ -565,7 +571,7 @@ class _SettingsPageState extends State<SettingsScreen> {
           title: l10n.measurementPrinter,
           printerKey: orderMeasurementPrinterSetting,
           paperKey: orderMeasurementPaperSetting,
-          papers: {'55mm': l10n.paper55mm},
+          papers: {'55mm': l10n.paper55mm, '80mm': l10n.paper80mm},
           defaultPaper: '55mm',
           l10n: l10n,
         ),
@@ -576,7 +582,7 @@ class _SettingsPageState extends State<SettingsScreen> {
           title: l10n.customerBillPrinter,
           printerKey: orderBillPrinterSetting,
           paperKey: orderBillPaperSetting,
-          papers: {'55mm': l10n.paper55mm},
+          papers: {'55mm': l10n.paper55mm, '80mm': l10n.paper80mm},
           defaultPaper: '55mm',
           l10n: l10n,
         ),
@@ -1383,7 +1389,7 @@ class _SettingsPageState extends State<SettingsScreen> {
     }
     try {
       await widget.database.saveSettings({'payment_methods': normalized});
-      if (mounted) setState(() => future = widget.database.settings());
+      await _reloadSettings();
     } catch (error) {
       debugPrint('Payment methods save failed: $error');
       if (mounted) {

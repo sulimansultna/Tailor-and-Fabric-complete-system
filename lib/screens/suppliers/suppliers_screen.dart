@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../commands/app_commands.dart';
 
 import '../../widgets/responsive_list_page.dart';
@@ -10,6 +11,7 @@ import '../../core/formatters.dart';
 import '../../data/shop_database.dart';
 import '../../l10n/app_localizations_extensions.dart';
 import 'fabric_purchase_screen.dart';
+import 'widgets/supplier_ledger_view.dart';
 
 class SuppliersScreen extends StatefulWidget {
   const SuppliersScreen({super.key, required this.database});
@@ -211,119 +213,131 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
             ),
           ),
           actions: [
-            CommandButton(id: 'action.cancel', child: TextButton(
-              onPressed: saving
-                  ? null
-                  : () => Navigator.pop(dialogContext, false),
-              child: Text(context.l10n.cancel),
-            )),
-            CommandButton(id: 'action.save', child: FilledButton.icon(
-              onPressed: saving
-                  ? null
-                  : () async {
-                      if (name.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          SnackBar(content: Text(_t('nameRequired'))),
-                        );
-                        return;
-                      }
-                      update(() => saving = true);
-                      try {
-                        final phones = [phone.text, phone2.text]
-                            .map((value) => value.trim())
-                            .where((value) => value.isNotEmpty)
-                            .toSet();
-                        var duplicatePhone = false;
-                        for (final value in phones) {
-                          if (await widget.database.supplierPhoneExists(
-                            value,
-                            exceptId: supplier?['id'] as int?,
-                          )) {
-                            duplicatePhone = true;
-                          }
-                        }
-                        if (duplicatePhone && dialogContext.mounted) {
-                          final confirmed = await showDialog<bool>(
-                            context: dialogContext,
-                            builder: (confirmContext) => AlertDialog(
-                              title: Text(_t('possibleDuplicate')),
-                              content: Text(_t('sharedPhoneWarning')),
-                              actions: [
-                                CommandButton(id: 'action.cancel', child: TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(confirmContext, false),
-                                  child: Text(context.l10n.cancel),
-                                )),
-                                FilledButton(
-                                  onPressed: () =>
-                                      Navigator.pop(confirmContext, true),
-                                  child: Text(_t('continueAnyway')),
-                                ),
-                              ],
-                            ),
+            CommandButton(
+              id: 'action.cancel',
+              child: TextButton(
+                onPressed: saving
+                    ? null
+                    : () => Navigator.pop(dialogContext, false),
+                child: Text(context.l10n.cancel),
+              ),
+            ),
+            CommandButton(
+              id: 'action.save',
+              child: FilledButton.icon(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        if (name.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            SnackBar(content: Text(_t('nameRequired'))),
                           );
-                          if (confirmed != true) {
-                            update(() => saving = false);
-                            return;
-                          }
+                          return;
                         }
-                        if (supplier == null) {
-                          final parsed = opening.text.trim().isEmpty
-                              ? 0
-                              : parseMoneyMinor(opening.text);
-                          if (parsed == null) {
-                            update(() => saving = false);
-                            if (dialogContext.mounted) {
-                              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                SnackBar(content: Text(_t('invalidAmount'))),
-                              );
+                        update(() => saving = true);
+                        try {
+                          final phones = [phone.text, phone2.text]
+                              .map((value) => value.trim())
+                              .where((value) => value.isNotEmpty)
+                              .toSet();
+                          var duplicatePhone = false;
+                          for (final value in phones) {
+                            if (await widget.database.supplierPhoneExists(
+                              value,
+                              exceptId: supplier?['id'] as int?,
+                            )) {
+                              duplicatePhone = true;
                             }
-                            return;
                           }
-                          final signed = balanceKind == 'credit'
-                              ? -parsed
-                              : parsed;
-                          await widget.database.addSupplier(
-                            name: name.text,
-                            company: company.text,
-                            phone: phone.text,
-                            phone2: phone2.text,
-                            address: address.text,
-                            notes: notes.text,
-                            openingBalance: signed,
-                            openingDate: openingDate,
-                          );
-                        } else {
-                          await widget.database.updateSupplier(
-                            id: supplier['id'] as int,
-                            name: name.text,
-                            company: company.text,
-                            phone: phone.text,
-                            phone2: phone2.text,
-                            address: address.text,
-                            notes: notes.text,
-                          );
+                          if (duplicatePhone && dialogContext.mounted) {
+                            final confirmed = await showDialog<bool>(
+                              context: dialogContext,
+                              builder: (confirmContext) => AlertDialog(
+                                title: Text(_t('possibleDuplicate')),
+                                content: Text(_t('sharedPhoneWarning')),
+                                actions: [
+                                  CommandButton(
+                                    id: 'action.cancel',
+                                    child: TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(confirmContext, false),
+                                      child: Text(context.l10n.cancel),
+                                    ),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () =>
+                                        Navigator.pop(confirmContext, true),
+                                    child: Text(_t('continueAnyway')),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed != true) {
+                              update(() => saving = false);
+                              return;
+                            }
+                          }
+                          if (supplier == null) {
+                            final parsed = opening.text.trim().isEmpty
+                                ? 0
+                                : parseMoneyMinor(opening.text);
+                            if (parsed == null) {
+                              update(() => saving = false);
+                              if (dialogContext.mounted) {
+                                ScaffoldMessenger.of(
+                                  dialogContext,
+                                ).showSnackBar(
+                                  SnackBar(content: Text(_t('invalidAmount'))),
+                                );
+                              }
+                              return;
+                            }
+                            final signed = balanceKind == 'credit'
+                                ? -parsed
+                                : parsed;
+                            await widget.database.addSupplier(
+                              name: name.text,
+                              company: company.text,
+                              phone: phone.text,
+                              phone2: phone2.text,
+                              address: address.text,
+                              notes: notes.text,
+                              openingBalance: signed,
+                              openingDate: openingDate,
+                            );
+                          } else {
+                            await widget.database.updateSupplier(
+                              id: supplier['id'] as int,
+                              name: name.text,
+                              company: company.text,
+                              phone: phone.text,
+                              phone2: phone2.text,
+                              address: address.text,
+                              notes: notes.text,
+                            );
+                          }
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext, true);
+                          }
+                        } catch (error) {
+                          if (dialogContext.mounted) {
+                            update(() => saving = false);
+                            ScaffoldMessenger.of(
+                              dialogContext,
+                            ).showSnackBar(SnackBar(content: Text('$error')));
+                          }
                         }
-                        if (dialogContext.mounted) {
-                          Navigator.pop(dialogContext, true);
-                        }
-                      } catch (error) {
-                        if (dialogContext.mounted) {
-                          update(() => saving = false);
-                          ScaffoldMessenger.of(dialogContext)
-                              .showSnackBar(SnackBar(content: Text('$error')));
-                        }
-                      }
-                    },
-              icon: saving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save_outlined),
-              label: Text(context.l10n.save),
-            )),
+                      },
+                icon: saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: Text(context.l10n.save),
+              ),
+            ),
           ],
         ),
       ),
@@ -349,10 +363,13 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
         title: Text(archived ? _t('restoreSupplier') : _t('archiveSupplier')),
         content: Text(archived ? _t('restoreConfirm') : _t('archiveConfirm')),
         actions: [
-          CommandButton(id: 'action.cancel', child: TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(context.l10n.cancel),
-          )),
+          CommandButton(
+            id: 'action.cancel',
+            child: TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(context.l10n.cancel),
+            ),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text(archived ? _t('restore') : _t('archive')),
@@ -375,10 +392,13 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
         title: Text(_t('deleteSupplier')),
         content: Text(_t('deleteConfirm')),
         actions: [
-          CommandButton(id: 'action.cancel', child: TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(context.l10n.cancel),
-          )),
+          CommandButton(
+            id: 'action.cancel',
+            child: TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(context.l10n.cancel),
+            ),
+          ),
           FilledButton.tonal(
             onPressed: () => Navigator.pop(context, true),
             child: Text(_t('delete')),
@@ -397,7 +417,10 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     await _load();
   }
 
-  Future<void> _profile(Map<String, Object?> supplier, {int initialTabIndex = 0}) async {
+  Future<void> _profile(
+    Map<String, Object?> supplier, {
+    int initialTabIndex = 0,
+  }) async {
     AppCommandRegistry.maybeOf(context)?.select('supplier', supplier);
     final id = supplier['id'] as int;
     final ledger = await widget.database.supplierLedger(id);
@@ -452,7 +475,11 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                   child: TabBarView(
                     children: [
                       _purchaseList(purchases),
-                      _ledgerList(ledger),
+                      SupplierLedgerView(
+                        entries: ledger,
+                        fallbackOpeningBalance:
+                            (supplier['opening_balance'] as num? ?? 0).toInt(),
+                      ),
                       _paymentList(payments),
                       _information(supplier),
                     ],
@@ -532,54 +559,13 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
           ],
         );
 
-  Widget _ledgerList(List<Map<String, Object?>> entries) {
-    if (entries.isEmpty) return Center(child: Text(_t('noLedger')));
-    final ordered = entries.toList()
-      ..sort((a, b) {
-        final date = '${a['date']}'.compareTo('${b['date']}');
-        return date == 0 ? (a['id'] as int).compareTo(b['id'] as int) : date;
-      });
-    var running = 0;
-    final rows = <Map<String, Object?>>[];
-    for (final entry in ordered) {
-      running += (entry['charge'] as num? ?? 0).toInt();
-      running -= (entry['payment'] as num? ?? 0).toInt();
-      rows.add({...entry, 'running': running});
-    }
-    return ListView(
-      children: [
-        for (final entry in rows.reversed)
-          Builder(
-            builder: (context) {
-              final details = <String>[
-                formatDate(
-                  '${entry['date']}',
-                  locale: Localizations.localeOf(context).toLanguageTag(),
-                ),
-              ];
-              final purchaseNumber = '${entry['purchase_number'] ?? ''}';
-              final bill = '${entry['supplier_bill'] ?? ''}';
-              final linkedBills = '${entry['linked_purchase_bills'] ?? ''}';
-              final voucher = '${entry['payment_voucher'] ?? ''}';
-              if (purchaseNumber.isNotEmpty) {
-                details.add('${_t('purchaseNumber')}: $purchaseNumber');
-              }
-              if (bill.isNotEmpty) details.add('${_t('supplierBill')}: $bill');
-              if (linkedBills.isNotEmpty) {
-                details.add('${_t('linkedPurchases')}: $linkedBills');
-              }
-              if (voucher.isNotEmpty && voucher != '${entry['reference']}') {
-                details.add('${_t('paymentVoucher')}: $voucher');
-              }
-              return ListTile(
-                dense: true,
-                title: Text('${entry['description']} · ${entry['reference']}'),
-                subtitle: Text(details.join('\n')),
-                trailing: Text(_money((entry['running'] as int).abs())),
-              );
-            },
-          ),
-      ],
+  Future<void> _openLedger(Map<String, Object?> supplier) async {
+    final entries = await widget.database.supplierLedger(supplier['id'] as int);
+    if (!mounted) return;
+    await showSupplierLedger(
+      context: context,
+      supplier: supplier,
+      entries: entries,
     );
   }
 
@@ -853,111 +839,124 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
             ),
           ),
           actions: [
-            CommandButton(id: 'action.cancel', child: TextButton(
-              onPressed: saving
-                  ? null
-                  : () => Navigator.pop(dialogContext, false),
-              child: Text(context.l10n.cancel),
-            )),
-            CommandButton(id: 'action.save', child: FilledButton.icon(
-              onPressed: saving
-                  ? null
-                  : () async {
-                      final value = parseMoneyMinor(amount.text);
-                      if (value == null || value <= 0) {
-                        ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          SnackBar(content: Text(_t('invalidAmount'))),
-                        );
-                        return;
-                      }
-                      update(() => saving = true);
-                      try {
-                        final targets = allocateOldest || purchases.isEmpty
-                            ? purchases
-                            : purchases.where((row) => row['id'] == purchaseId);
-                        var remaining = value;
-                        final allocations = <int, int>{};
-                        for (final purchase in targets) {
-                          final due =
-                              (purchase['total'] as int) -
-                              (purchase['paid'] as int);
-                          final applied = remaining < due ? remaining : due;
-                          if (applied > 0) {
-                            allocations[purchase['id'] as int] = applied;
-                            remaining -= applied;
-                          }
-                          if (remaining == 0) break;
+            CommandButton(
+              id: 'action.cancel',
+              child: TextButton(
+                onPressed: saving
+                    ? null
+                    : () => Navigator.pop(dialogContext, false),
+                child: Text(context.l10n.cancel),
+              ),
+            ),
+            CommandButton(
+              id: 'action.save',
+              child: FilledButton.icon(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        final value = parseMoneyMinor(amount.text);
+                        if (value == null || value <= 0) {
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            SnackBar(content: Text(_t('invalidAmount'))),
+                          );
+                          return;
                         }
-                        if (remaining > 0) {
-                          final confirmed = await showDialog<bool>(
-                            context: dialogContext,
-                            builder: (confirmContext) => AlertDialog(
-                              title: Text(_t('supplierCredit')),
-                              content: Text(
-                                _t(
-                                  'confirmSupplierAdvance',
-                                ).replaceFirst('{amount}', _money(remaining)),
-                              ),
-                              actions: [
-                                CommandButton(id: 'action.cancel', child: TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(confirmContext, false),
-                                  child: Text(context.l10n.cancel),
-                                )),
-                                FilledButton(
-                                  onPressed: () =>
-                                      Navigator.pop(confirmContext, true),
-                                  child: Text(_t('continueAnyway')),
+                        update(() => saving = true);
+                        try {
+                          final targets = allocateOldest || purchases.isEmpty
+                              ? purchases
+                              : purchases.where(
+                                  (row) => row['id'] == purchaseId,
+                                );
+                          var remaining = value;
+                          final allocations = <int, int>{};
+                          for (final purchase in targets) {
+                            final due =
+                                (purchase['total'] as int) -
+                                (purchase['paid'] as int);
+                            final applied = remaining < due ? remaining : due;
+                            if (applied > 0) {
+                              allocations[purchase['id'] as int] = applied;
+                              remaining -= applied;
+                            }
+                            if (remaining == 0) break;
+                          }
+                          if (remaining > 0) {
+                            final confirmed = await showDialog<bool>(
+                              context: dialogContext,
+                              builder: (confirmContext) => AlertDialog(
+                                title: Text(_t('supplierCredit')),
+                                content: Text(
+                                  _t(
+                                    'confirmSupplierAdvance',
+                                  ).replaceFirst('{amount}', _money(remaining)),
                                 ),
-                              ],
-                            ),
-                          );
-                          if (confirmed != true) {
+                                actions: [
+                                  CommandButton(
+                                    id: 'action.cancel',
+                                    child: TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(confirmContext, false),
+                                      child: Text(context.l10n.cancel),
+                                    ),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () =>
+                                        Navigator.pop(confirmContext, true),
+                                    child: Text(_t('continueAnyway')),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed != true) {
+                              update(() => saving = false);
+                              return;
+                            }
+                          }
+                          final receipt = await widget.database
+                              .recordSupplierPayment(
+                                supplierId: supplierId,
+                                amount: value,
+                                date: date,
+                                method: method,
+                                allocations: allocations,
+                                reference: reference.text,
+                                notes: notes.text,
+                                operationId:
+                                    'supplier-payment-${DateTime.now().microsecondsSinceEpoch}',
+                              );
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext, true);
+                          }
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  _t('paymentSaved')
+                                      .replaceFirst('{number}', receipt),
+                                ),
+                              ),
+                            );
+                          }
+                        } catch (error) {
+                          if (dialogContext.mounted) {
                             update(() => saving = false);
-                            return;
+                            ScaffoldMessenger.of(
+                              dialogContext,
+                            ).showSnackBar(SnackBar(content: Text('$error')));
                           }
                         }
-                        final receipt = await widget.database.recordSupplierPayment(
-                          supplierId: supplierId,
-                          amount: value,
-                          date: date,
-                          method: method,
-                          allocations: allocations,
-                          reference: reference.text,
-                          notes: notes.text,
-                          operationId:
-                              'supplier-payment-${DateTime.now().microsecondsSinceEpoch}',
-                        );
-                        if (dialogContext.mounted) {
-                          Navigator.pop(dialogContext, true);
-                        }
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                _t('paymentSaved')
-                                    .replaceFirst('{number}', receipt),
-                              ),
-                            ),
-                          );
-                        }
-                      } catch (error) {
-                        if (dialogContext.mounted) {
-                          update(() => saving = false);
-                          ScaffoldMessenger.of(dialogContext)
-                              .showSnackBar(SnackBar(content: Text('$error')));
-                        }
-                      }
-                    },
-              icon: saving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.payments_outlined),
-              label: Text(_t('savePayment')),
-            )),
+                      },
+                icon: saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.payments_outlined),
+                label: Text(_t('savePayment')),
+              ),
+            ),
           ],
         ),
       ),
@@ -981,203 +980,249 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
       0,
       (sum, row) => sum + (-_balance(row)).clamp(0, 1 << 30).toInt(),
     );
-    return CommandScope(commands: _keyboardCommands(), builder: (context) => Directionality(
-      textDirection: _rtl ? TextDirection.rtl : TextDirection.ltr,
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: ResponsiveListPage(
-          header: [
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: 280,
-                  child: Text(
-                    _t('suppliers'),
-                    style: Theme.of(context).textTheme.headlineMedium
-                        ?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                CommandButton(register: false, aliases: const ['action.new'], id: 'suppliers.add', child: FilledButton.icon(
-                  onPressed: () => _supplierForm(),
-                  icon: const Icon(Icons.person_add_alt_1),
-                  label: Text(_t('addSupplier')),
-                )),
-                OutlinedButton.icon(
-                  onPressed: () => _newPurchase(),
-                  icon: const Icon(Icons.add_shopping_cart_outlined),
-                  label: Text(_t('newPurchase')),
-                ),
-                TextButton.icon(
-                  onPressed: _showPurchaseDrafts,
-                  icon: const Icon(Icons.edit_note),
-                  label: Text(_t('purchaseDrafts')),
-                ),
-                IconButton(
-                  tooltip: l10n.refresh,
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final columns = constraints.maxWidth < 700 ? 1 : 3;
-                final gap = 10.0;
-                final width =
-                    (constraints.maxWidth - gap * (columns - 1)) / columns;
-                return Wrap(
-                  spacing: gap,
-                  runSpacing: gap,
-                  children: [
-                    SizedBox(
-                      width: width,
-                      child: _summaryCard(
-                        _t('activeSuppliers'),
-                        '${active.length}',
-                        Icons.groups_outlined,
-                      ),
-                    ),
-                    SizedBox(
-                      width: width,
-                      child: _summaryCard(
-                        _t('amountOwed'),
-                        _money(owed),
-                        Icons.account_balance_wallet_outlined,
-                      ),
-                    ),
-                    SizedBox(
-                      width: width,
-                      child: _summaryCard(
-                        _t('availableCredit'),
-                        _money(credit),
-                        Icons.credit_score_outlined,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: 320,
-                  child: TextField(
-                    controller: _search,
-                    onChanged: (_) => _load(),
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.search),
-                      hintText: _t('searchSupplier'),
-                      isDense: true,
+    return CommandScope(
+      commands: _keyboardCommands(),
+      builder: (context) => Directionality(
+        textDirection: _rtl ? TextDirection.rtl : TextDirection.ltr,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ResponsiveListPage(
+            header: [
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 280,
+                    child: Text(
+                      _t('suppliers'),
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                   ),
-                ),
-                SizedBox(
-                  width: 260,
-                  child: DropdownButton<String>(
-                    isExpanded: true,
-                    value: _filter,
-                    items: [
-                      DropdownMenuItem(
-                        value: 'active',
-                        child: Text(_t('allActive')),
-                      ),
-                      DropdownMenuItem(
-                        value: 'owing',
-                        child: Text(_t('withBalance')),
-                      ),
-                      DropdownMenuItem(
-                        value: 'credit',
-                        child: Text(_t('withCredit')),
-                      ),
-                      DropdownMenuItem(
-                        value: 'archived',
-                        child: Text(_t('archived')),
-                      ),
-                    ],
-                    onChanged: (value) =>
-                        setState(() => _filter = value ?? 'active'),
+                  CommandButton(
+                    register: false,
+                    aliases: const ['action.new'],
+                    id: 'suppliers.add',
+                    child: FilledButton.icon(
+                      onPressed: () => _supplierForm(),
+                      icon: const Icon(Icons.person_add_alt_1),
+                      label: Text(_t('addSupplier')),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-          ],
-          body: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                  OutlinedButton.icon(
+                    onPressed: () => _newPurchase(),
+                    icon: const Icon(Icons.add_shopping_cart_outlined),
+                    label: Text(_t('newPurchase')),
+                  ),
+                  TextButton.icon(
+                    onPressed: _showPurchaseDrafts,
+                    icon: const Icon(Icons.edit_note),
+                    label: Text(_t('purchaseDrafts')),
+                  ),
+                  IconButton(
+                    tooltip: l10n.refresh,
+                    onPressed: _load,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth < 700 ? 1 : 3;
+                  final gap = 10.0;
+                  final width =
+                      (constraints.maxWidth - gap * (columns - 1)) / columns;
+                  return Wrap(
+                    spacing: gap,
+                    runSpacing: gap,
                     children: [
-                      Text(_t('loadError')),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _load,
-                        icon: const Icon(Icons.refresh),
-                        label: Text(l10n.retry),
+                      SizedBox(
+                        width: width,
+                        child: _summaryCard(
+                          _t('activeSuppliers'),
+                          '${active.length}',
+                          Icons.groups_outlined,
+                        ),
+                      ),
+                      SizedBox(
+                        width: width,
+                        child: _summaryCard(
+                          _t('amountOwed'),
+                          _money(owed),
+                          Icons.account_balance_wallet_outlined,
+                        ),
+                      ),
+                      SizedBox(
+                        width: width,
+                        child: _summaryCard(
+                          _t('availableCredit'),
+                          _money(credit),
+                          Icons.credit_score_outlined,
+                        ),
                       ),
                     ],
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    child: TextField(
+                      controller: _search,
+                      onChanged: (_) => _load(),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
+                        hintText: _t('searchSupplier'),
+                        isDense: true,
+                      ),
+                    ),
                   ),
-                )
-              : visible.isEmpty
-              ? Center(child: Text(_t('noSuppliers')))
-              : LayoutBuilder(
-                  builder: (context, constraints) => constraints.maxWidth < 900
-                      ? ListView.builder(
-                          itemCount: visible.length,
-                          itemBuilder: (context, index) => CommandRecordTarget(kind: 'supplier', record: visible[index], child: _supplierCard(visible[index])),
-                        )
-                      : Card(
-                          clipBehavior: Clip.antiAlias,
-                          child: HorizontalTable(
-                            child: SingleChildScrollView(
-                              child: DataTable(
-                                columns: [
-                                  DataColumn(label: Text(_t('supplierId'))),
-                                  DataColumn(label: Text(_t('name'))),
-                                  DataColumn(label: Text(_t('mobile'))),
-                                  DataColumn(label: Text(_t('company'))),
-                                  DataColumn(
-                                    label: Text(_t('amountOwed')),
-                                    numeric: true,
-                                  ),
-                                  DataColumn(
-                                    label: Text(_t('supplierCredit')),
-                                    numeric: true,
-                                  ),
-                                  DataColumn(label: Text(_t('actions'))),
-                                ],
-                                rows: [
-                                  for (final row in visible) _supplierRow(row),
-                                ],
+                  SizedBox(
+                    width: 260,
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: _filter,
+                      items: [
+                        DropdownMenuItem(
+                          value: 'active',
+                          child: Text(_t('allActive')),
+                        ),
+                        DropdownMenuItem(
+                          value: 'owing',
+                          child: Text(_t('withBalance')),
+                        ),
+                        DropdownMenuItem(
+                          value: 'credit',
+                          child: Text(_t('withCredit')),
+                        ),
+                        DropdownMenuItem(
+                          value: 'archived',
+                          child: Text(_t('archived')),
+                        ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => _filter = value ?? 'active'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
+            body: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_t('loadError')),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: _load,
+                          icon: const Icon(Icons.refresh),
+                          label: Text(l10n.retry),
+                        ),
+                      ],
+                    ),
+                  )
+                : visible.isEmpty
+                ? Center(child: Text(_t('noSuppliers')))
+                : LayoutBuilder(
+                    builder: (context, constraints) =>
+                        constraints.maxWidth < 900
+                        ? ListView.builder(
+                            itemCount: visible.length,
+                            itemBuilder: (context, index) =>
+                                CommandRecordTarget(
+                                  kind: 'supplier',
+                                  record: visible[index],
+                                  child: _supplierCard(visible[index]),
+                                ),
+                          )
+                        : Card(
+                            clipBehavior: Clip.antiAlias,
+                            child: HorizontalTable(
+                              child: SingleChildScrollView(
+                                child: DataTable(
+                                  columns: [
+                                    DataColumn(label: Text(_t('supplierId'))),
+                                    DataColumn(label: Text(_t('name'))),
+                                    DataColumn(label: Text(_t('mobile'))),
+                                    DataColumn(label: Text(_t('company'))),
+                                    DataColumn(
+                                      label: Text(_t('amountOwed')),
+                                      numeric: true,
+                                    ),
+                                    DataColumn(
+                                      label: Text(_t('supplierCredit')),
+                                      numeric: true,
+                                    ),
+                                    DataColumn(label: Text(_t('actions'))),
+                                  ],
+                                  rows: [
+                                    for (final row in visible)
+                                      _supplierRow(row),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                ),
+                  ),
+          ),
         ),
       ),
-    ));
+    );
   }
 
-  Future<void> _supplierCommand(Future<void> Function(Map<String, Object?>) action, {bool Function(Map<String, Object?>)? eligible}) =>
-      withCommandRecord(context, 'supplier', widget.database.suppliers(includeArchived: true), action, eligible: eligible);
+  Future<void> _supplierCommand(
+    Future<void> Function(Map<String, Object?>) action, {
+    bool Function(Map<String, Object?>)? eligible,
+  }) => withCommandRecord(
+    context,
+    'supplier',
+    widget.database.suppliers(includeArchived: true),
+    action,
+    eligible: eligible,
+  );
 
   List<AppCommand> _keyboardCommands() => [
-    AppCommand('suppliers.add', () => _supplierForm(), aliases: [CommandKey.add]),
-    AppCommand('suppliers.edit', () => _supplierCommand(_supplierForm), aliases: [CommandKey.edit]),
-    AppCommand('suppliers.remove', () => _supplierCommand(_delete), aliases: [CommandKey.remove]),
-    AppCommand('suppliers.archive', () => _supplierCommand((row) => _archive(row, (row['archived'] as num? ?? 0) != 0))),
-    AppCommand('suppliers.payment', () => _supplierCommand(_paySupplier, eligible: (row) => (row['archived'] as num? ?? 0) == 0)),
-    AppCommand('nav.supplierLedger', () => _supplierCommand((row) => _profile(row, initialTabIndex: 1))),
+    AppCommand(
+      'suppliers.add',
+      () => _supplierForm(),
+      aliases: [CommandKey.add],
+    ),
+    AppCommand(
+      'suppliers.edit',
+      () => _supplierCommand(_supplierForm),
+      aliases: [CommandKey.edit],
+    ),
+    AppCommand(
+      'suppliers.remove',
+      () => _supplierCommand(_delete),
+      aliases: [CommandKey.remove],
+    ),
+    AppCommand(
+      'suppliers.archive',
+      () => _supplierCommand(
+        (row) => _archive(row, (row['archived'] as num? ?? 0) != 0),
+      ),
+    ),
+    AppCommand(
+      'suppliers.payment',
+      () => _supplierCommand(
+        _paySupplier,
+        eligible: (row) => (row['archived'] as num? ?? 0) == 0,
+      ),
+    ),
+    AppCommand('nav.supplierLedger', () => _supplierCommand(_openLedger)),
     AppCommand('purchases.new', () => _newPurchase()),
     AppCommand('purchases.drafts', _showPurchaseDrafts),
     AppCommand(CommandKey.search, () => focusCommandSearch(_search)),
@@ -1214,8 +1259,11 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
   DataRow _supplierRow(Map<String, Object?> row) {
     final balance = _balance(row);
     return DataRow(
-      selected: AppCommandRegistry.maybeOf(context)?.selected('supplier')?['id'] == row['id'],
-      onSelectChanged: (_) => AppCommandRegistry.maybeOf(context)?.select('supplier', row),
+      selected:
+          AppCommandRegistry.maybeOf(context)?.selected('supplier')?['id'] ==
+          row['id'],
+      onSelectChanged: (_) =>
+          AppCommandRegistry.maybeOf(context)?.select('supplier', row),
       cells: [
         DataCell(Text('${row['code'] ?? 'S${row['id']}'}')),
         DataCell(Text('${row['name']}')),
@@ -1281,6 +1329,11 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
           tooltip: _t('viewProfile'),
           onPressed: () => _profile(row),
           icon: const Icon(Icons.open_in_new),
+        ),
+        IconButton(
+          tooltip: _t('ledger'),
+          onPressed: () => _openLedger(row),
+          icon: const Icon(Icons.account_balance_wallet_outlined),
         ),
         IconButton(
           tooltip: _t('editSupplier'),

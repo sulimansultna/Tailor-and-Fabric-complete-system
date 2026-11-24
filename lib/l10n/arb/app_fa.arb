@@ -1,4 +1,13 @@
 {
+  "customerReceiptTitle": "رسید مشتری",
+  "receiptNumber": "شمارهٔ رسید",
+  "receiptDate": "تاریخ",
+  "receiptDelivery": "تحویل",
+  "receiptSignature": "امضا",
+  "receiptThankYou": "تشکر!",
+  "receiptRevision": "ویرایش",
+  "receiptReason": "دلیل",
+  "receiptRetainedCharge": "مبلغ نگه‌داشته‌شده",
   "loginBrandHeading": "فروشگاه‌تان، منظم و مرتب.",
   "loginBrandMessage": "مشتری‌ها، اندازه‌ها، سفارش‌ها و حساب‌ها را یک‌جا مدیریت کنید.",
   "loginWelcomeBack": "خوش آمدید.",

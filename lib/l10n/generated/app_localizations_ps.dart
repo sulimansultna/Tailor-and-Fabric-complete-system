@@ -10,6 +10,33 @@ class AppLocalizationsPs extends AppLocalizations {
   AppLocalizationsPs([String locale = 'ps']) : super(locale);
 
   @override
+  String get customerReceiptTitle => 'د پېرودونکي رسید';
+
+  @override
+  String get receiptNumber => 'د رسید شمېره';
+
+  @override
+  String get receiptDate => 'نېټه';
+
+  @override
+  String get receiptDelivery => 'سپارل';
+
+  @override
+  String get receiptSignature => 'لاسلیک';
+
+  @override
+  String get receiptThankYou => 'مننه!';
+
+  @override
+  String get receiptRevision => 'سمون';
+
+  @override
+  String get receiptReason => 'لامل';
+
+  @override
+  String get receiptRetainedCharge => 'ساتل شوې پیسې';
+
+  @override
   String get loginBrandHeading => 'ستاسو دوکان، په نظم کې.';
 
   @override

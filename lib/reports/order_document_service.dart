@@ -37,9 +37,8 @@ String orderDocumentPaperSetting(
       ? orderMeasurementPaperSetting
       : orderBillPaperSetting;
   final savedPaper = settings[settingKey]?.toString();
-  // Both documents use the same 55 mm roll. This also normalizes older A5
-  // measurement paper settings when those orders are previewed or reprinted.
-  const supportedPapers = {'55mm'};
+  // Keep older non-roll settings printable using the default thermal size.
+  const supportedPapers = {'55mm', '80mm'};
   return supportedPapers.contains(savedPaper) ? savedPaper! : '55mm';
 }
 
@@ -56,8 +55,7 @@ PdfPageFormat orderDocumentPageFormat(
   OrderDocumentKind kind,
   String paperSize,
 ) {
-  if (paperSize == '55mm' ||
-      (kind == OrderDocumentKind.customerBill && paperSize == '80mm')) {
+  if (paperSize == '55mm' || paperSize == '80mm') {
     return PdfPageFormat(
       (paperSize == '55mm' ? 55 : 80) * PdfPageFormat.mm,
       210 * PdfPageFormat.mm,
@@ -131,11 +129,8 @@ Future<Uint8List> buildOrderDocumentPdf(
       document,
       order: order,
       lines: lines,
-      settings: settings,
-      shopLogo: shopLogo,
       l10n: l10n,
       rtl: rtl,
-      locale: locale,
       pageFormat: pageFormat,
     );
   } else {
@@ -453,14 +448,12 @@ class _OrderDocumentPreviewDialogState
   }
 }
 
-pw.Widget _sheetCell(String value, {bool bold = false}) => pw.Padding(
+pw.Widget _sheetCell(String value) => pw.Padding(
   padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2.5),
   child: pw.Text(
     value,
-    style: pw.TextStyle(
-      fontSize: 7.5,
-      fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-    ),
+    tightBounds: true,
+    style: const pw.TextStyle(fontSize: 8),
   ),
 );
 
@@ -468,283 +461,229 @@ pw.Widget _sheetHeaderCell(String value) => pw.Padding(
   padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
   child: pw.Text(
     value,
+    tightBounds: true,
     style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
   ),
 );
+
+pw.Table _workSlipTable({
+  required String heading,
+  required String valueHeading,
+  required Iterable<(String, String)> values,
+  required bool rtl,
+  bool numericValues = false,
+}) {
+  List<pw.Widget> cells(pw.Widget label, pw.Widget value) =>
+      rtl ? [value, label] : [label, value];
+
+  return pw.Table(
+    border: pw.TableBorder.all(color: PdfColors.black, width: .45),
+    columnWidths: {
+      0: pw.FlexColumnWidth(rtl ? 1 : 2.1),
+      1: pw.FlexColumnWidth(rtl ? 2.1 : 1),
+    },
+    children: [
+      pw.TableRow(
+        repeat: true,
+        decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+        children: cells(
+          _sheetHeaderCell(heading),
+          _sheetHeaderCell(valueHeading),
+        ),
+      ),
+      for (final (label, value) in values)
+        pw.TableRow(
+          verticalAlignment: pw.TableCellVerticalAlignment.middle,
+          children: cells(
+            _sheetCell(label),
+            pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(
+                horizontal: 4,
+                vertical: 3,
+              ),
+              child: pw.Text(
+                value,
+                tightBounds: true,
+                textAlign: pw.TextAlign.center,
+                textDirection: numericValues ? pw.TextDirection.ltr : null,
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
+// Shop/profile text can be Pashto or Dari even on an English receipt. Its
+// direction must enable PDF shaping independently of the document language.
+pw.TextDirection _documentTextDirection(String value) =>
+    RegExp(
+      r'[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb50-\ufdff\ufe70-\ufeff]',
+    ).hasMatch(value)
+    ? pw.TextDirection.rtl
+    : pw.TextDirection.ltr;
+
+Iterable<pw.Widget> _workSlipInstructions(String label, String value) sync* {
+  final direction = _documentTextDirection(value);
+  yield pw.Text(
+    '$label:',
+    tightBounds: true,
+    style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+  );
+  yield pw.SizedBox(height: 3);
+  yield pw.Text(
+    value,
+    tightBounds: true,
+    textDirection: direction,
+    textAlign: direction == pw.TextDirection.rtl
+        ? pw.TextAlign.right
+        : pw.TextAlign.left,
+    style: const pw.TextStyle(fontSize: 8),
+  );
+  yield pw.SizedBox(height: 6);
+}
 
 void _addMeasurementSheet(
   pw.Document document, {
   required Map<String, Object?> order,
   required List<Map<String, Object?>> lines,
-  required Map<String, Object?> settings,
-  required pw.MemoryImage? shopLogo,
   required AppLocalizations l10n,
   required bool rtl,
-  required String locale,
   required PdfPageFormat pageFormat,
 }) {
-  final direction = rtl ? pw.TextDirection.rtl : pw.TextDirection.ltr;
-  final narrowRoll = pageFormat.width <= 60 * PdfPageFormat.mm;
-  final innerWidth = pageFormat.availableWidth - 10;
-  final measurementWidth = narrowRoll ? innerWidth : innerWidth * 5 / 11;
-  final designWidth = narrowRoll ? innerWidth : innerWidth * 6 / 11;
   final rows = <pw.Widget>[];
   for (var index = 0; index < lines.length; index++) {
     final line = lines[index];
     final garment = garmentFromKey(line['garment']);
     if (garment == null) continue;
     final snapshot = _decodeSnapshot(line['measurement_snapshot']);
-    final unit = line['measurement_unit']?.toString() == 'cm'
-        ? l10n.centimeters
-        : l10n.inches;
+    final unit = line['measurement_unit']?.toString() == 'cm' ? 'cm' : 'in';
     final style = _decodeStyle(line['style']);
-    final fields = measurementFields[garment] ?? const [];
-    final names = fields.map((field) => field.$1).toList();
-    names.addAll(snapshot.keys.where((name) => !names.contains(name)).toList());
-    final measurementTable = pw.Table(
-      border: pw.TableBorder.all(color: PdfColors.grey700, width: .45),
-      columnWidths: {
-        0: pw.FixedColumnWidth(measurementWidth * (rtl ? .34 : .66)),
-        1: pw.FixedColumnWidth(measurementWidth * (rtl ? .66 : .34)),
-      },
-      children: [
-        pw.TableRow(
-          decoration: const pw.BoxDecoration(color: PdfColors.grey300),
-          children: rtl
-              ? [
-                  _sheetHeaderCell(l10n.measurementValue),
-                  _sheetHeaderCell(l10n.measurementsHeading),
-                ]
-              : [
-                  _sheetHeaderCell(l10n.measurementsHeading),
-                  _sheetHeaderCell(l10n.measurementValue),
-                ],
-        ),
-        for (final name in names)
-          pw.TableRow(
-            children: rtl
-                ? [
-                    _sheetCell(
-                      name == 'Additional notes'
-                          ? snapshot[name] ?? '-'
-                          : snapshot.containsKey(name)
-                          ? '${snapshot[name]} $unit'
-                          : '-',
-                      bold: true,
-                    ),
-                    _sheetCell(l10n.measurementLabel(name)),
-                  ]
-                : [
-                    _sheetCell(l10n.measurementLabel(name)),
-                    _sheetCell(
-                      name == 'Additional notes'
-                          ? snapshot[name] ?? '-'
-                          : snapshot.containsKey(name)
-                          ? '${snapshot[name]} $unit'
-                          : '-',
-                      bold: true,
-                    ),
-                  ],
-          ),
-      ],
+    final features = decodeDesignFeatureChoices(style['features']);
+    final names = [
+      for (final field
+          in measurementFields[garment] ?? const <(String, String)>[])
+        field.$1,
+    ];
+    names.addAll(
+      snapshot.keys.where(
+        (name) => name != 'Additional notes' && !names.contains(name),
+      ),
     );
-    final rawFeatures = style['features'];
-    final features = rawFeatures is Map
-        ? rawFeatures.map(
-            (key, value) => MapEntry('$key', value == true || value == 'true'),
-          )
-        : const <String, bool>{};
-    final iconWidth = narrowRoll ? 22.0 : 34.0;
-    final valueWidth = narrowRoll ? 38.0 : 34.0;
-    final designTable = pw.Table(
-      border: pw.TableBorder.all(color: PdfColors.grey700, width: .45),
-      columnWidths: {
-        0: pw.FixedColumnWidth(rtl ? valueWidth : iconWidth),
-        1: pw.FixedColumnWidth(designWidth - iconWidth - valueWidth),
-        2: pw.FixedColumnWidth(rtl ? iconWidth : valueWidth),
-      },
-      children: [
-        pw.TableRow(
-          decoration: const pw.BoxDecoration(color: PdfColors.grey300),
-          children: rtl
-              ? [
-                  _sheetHeaderCell(l10n.measurementValue),
-                  _sheetHeaderCell(l10n.designChoices),
-                  _sheetHeaderCell(''),
-                ]
-              : [
-                  _sheetHeaderCell(''),
-                  _sheetHeaderCell(l10n.designChoices),
-                  _sheetHeaderCell(l10n.measurementValue),
-                ],
-        ),
-        for (final key in garmentDesignFeatureKeys[garment] ?? const <String>[])
-          pw.TableRow(
-            children: rtl
-                ? [
-                    _sheetCell(
-                      features[key] == true ? l10n.optionYes : l10n.optionNo,
-                      bold: true,
-                    ),
-                    _sheetCell(designFeatureLabel(l10n, key)),
-                    pw.Center(
-                      child: features[key] == true
-                          ? pw.SvgImage(
-                              svg: _designFeatureSvg(key),
-                              width: narrowRoll ? 18 : 27,
-                              height: narrowRoll ? 16 : 22,
-                            )
-                          : pw.SizedBox(height: narrowRoll ? 16 : 22),
-                    ),
-                  ]
-                : [
-                    pw.Center(
-                      child: features[key] == true
-                          ? pw.SvgImage(
-                              svg: _designFeatureSvg(key),
-                              width: narrowRoll ? 18 : 27,
-                              height: narrowRoll ? 16 : 22,
-                            )
-                          : pw.SizedBox(height: narrowRoll ? 16 : 22),
-                    ),
-                    _sheetCell(designFeatureLabel(l10n, key)),
-                    _sheetCell(
-                      features[key] == true ? l10n.optionYes : l10n.optionNo,
-                      bold: true,
-                    ),
-                  ],
-          ),
-      ],
-    );
-    rows.add(
+    rows.addAll([
+      if (index > 0) pw.NewPage(),
       pw.Container(
+        margin: const pw.EdgeInsets.only(top: 5, bottom: 5),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              '${l10n.garmentName(garment)} ${index + 1}',
+              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.Text(
+              '${l10n.quantity}: ${line['quantity'] ?? 1}',
+              style: const pw.TextStyle(fontSize: 8),
+            ),
+          ],
+        ),
+      ),
+      // Tables must be direct MultiPage children so every row can flow to the
+      // next page. Nesting both tables in a garment container hid long slips.
+      _workSlipTable(
+        heading: l10n.measurementsHeading,
+        valueHeading: unit,
+        values: names.map(
+          (name) => (
+            l10n.measurementLabel(name),
+            (snapshot[name]?.trim().isNotEmpty ?? false)
+                ? snapshot[name]!.trim()
+                : '-',
+          ),
+        ),
+        rtl: rtl,
+        numericValues: true,
+      ),
+      pw.SizedBox(height: 6),
+      _workSlipTable(
+        heading: l10n.designChoices,
+        valueHeading: l10n.measurementValue,
+        values: [
+          for (final key
+              in garmentDesignFeatureKeys[garment] ?? const <String>[])
+            (
+              designFeatureLabel(l10n, key),
+              features[key] == true ? l10n.optionYes : l10n.optionNo,
+            ),
+        ],
+        rtl: rtl,
+      ),
+      pw.SizedBox(height: 5),
+    ]);
+    for (final (label, value) in [
+      (l10n.additionalNotes, snapshot['Additional notes']),
+      (l10n.designInstructions, style['design']?.toString()),
+      (l10n.fittingInstructions, style['fitting']?.toString()),
+      (l10n.stitchingInstructions, style['stitching']?.toString()),
+    ]) {
+      if (value?.trim().isNotEmpty ?? false) {
+        rows.addAll(_workSlipInstructions(label, value!.trim()));
+      }
+    }
+  }
+  document.addPage(
+    pw.MultiPage(
+      pageFormat: pageFormat,
+      textDirection: rtl ? pw.TextDirection.rtl : pw.TextDirection.ltr,
+      theme: document.theme,
+      header: (context) => pw.Container(
         width: double.infinity,
-        margin: const pw.EdgeInsets.only(bottom: 8),
-        padding: const pw.EdgeInsets.all(5),
-        decoration: pw.BoxDecoration(
-          border: pw.Border.all(color: PdfColors.black, width: .8),
+        padding: const pw.EdgeInsets.only(bottom: 5),
+        margin: const pw.EdgeInsets.only(bottom: 5),
+        decoration: const pw.BoxDecoration(
+          border: pw.Border(bottom: pw.BorderSide(width: .8)),
         ),
         child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
+            pw.Text(
+              '${l10n.customer}: ${order['customer_name'] ?? '-'}',
+              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 2),
             pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
+                pw.Text(
+                  '${l10n.mobileNumber}: ',
+                  style: const pw.TextStyle(fontSize: 8),
+                ),
                 pw.Expanded(
                   child: pw.Text(
-                    '${l10n.garmentName(garment)} ${l10n.garment} ${index + 1}',
+                    '${order['customer_phone'] ?? '-'}',
+                    textDirection: pw.TextDirection.ltr,
+                    textAlign: rtl ? pw.TextAlign.right : pw.TextAlign.left,
                     style: pw.TextStyle(
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: pw.FontWeight.bold,
                     ),
                   ),
                 ),
-                pw.Text(
-                  '${l10n.quantity}: ${line['quantity']}',
-                  style: pw.TextStyle(
-                    fontSize: 9,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
               ],
             ),
-            pw.Text(
-              '${l10n.measurementProfile}: ${line['measurement_profile'] ?? '-'}  ·  $unit',
-              style: const pw.TextStyle(fontSize: 7.5),
-            ),
-            pw.SizedBox(height: 4),
-            if (narrowRoll) ...[
-              measurementTable,
-              pw.SizedBox(height: 5),
-              designTable,
-            ] else
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Expanded(
-                    flex: rtl ? 5 : 6,
-                    child: rtl ? measurementTable : designTable,
-                  ),
-                  pw.SizedBox(width: 5),
-                  pw.Expanded(
-                    flex: rtl ? 6 : 5,
-                    child: rtl ? designTable : measurementTable,
-                  ),
-                ],
-              ),
-            for (final entry in [
-              (l10n.designInstructions, style['design']?.toString()),
-              (l10n.fittingInstructions, style['fitting']?.toString()),
-              (l10n.stitchingInstructions, style['stitching']?.toString()),
-            ])
-              if ((entry.$2 ?? '').trim().isNotEmpty)
-                pw.Padding(
-                  padding: const pw.EdgeInsets.only(top: 4),
-                  child: pw.RichText(
-                    text: pw.TextSpan(
-                      children: [
-                        pw.TextSpan(
-                          text: '${entry.$1}: ',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                        ),
-                        pw.TextSpan(text: entry.$2),
-                      ],
-                      style: const pw.TextStyle(fontSize: 7.5),
-                    ),
-                  ),
-                ),
           ],
         ),
       ),
-    );
-  }
-  final shopName = settings['shop_name']?.toString().trim() ?? '';
-  document.addPage(
-    pw.MultiPage(
-      pageFormat: pageFormat,
-      textDirection: direction,
-      theme: document.theme,
-      header: (context) => _pageHeader(
-        title: l10n.measurementWorkSlip,
-        shopName: shopName.isEmpty ? l10n.shopName : shopName,
-        shopLogo: shopLogo,
-        billNumber: order['bill_number'],
-        l10n: l10n,
-        compact: narrowRoll,
-      ),
       build: (context) => [
-        _orderMeta(order, l10n, locale, narrowRoll: narrowRoll, rtl: rtl),
-        pw.SizedBox(height: 8),
         ...rows,
         if ((order['notes']?.toString().trim() ?? '').isNotEmpty)
-          _instructionPanel(l10n.orderInstructions, order['notes'].toString()),
+          ..._workSlipInstructions(l10n.orderInstructions, '${order['notes']}'),
       ],
     ),
   );
-}
-
-String _designFeatureSvg(String key) {
-  final drawing = switch (key) {
-    'cuff' => '<path d="M14 5h36l-5 36H19zM18 30h28"/>',
-    'collar' => '<path d="M8 9l17 8 7-7 7 7 17-8-9 31-15-16-15 16z"/>',
-    'belt' || 'backBelt' => '<rect x="5" y="14" width="54" height="20" rx="2"/><path d="M29 14v20M35 14v20"/>',
-    'frontPlacket' => '<path d="M22 4h20v40H22zM27 4v40"/><circle cx="35" cy="13" r="1.6"/><circle cx="35" cy="23" r="1.6"/><circle cx="35" cy="33" r="1.6"/>',
-    'chestPocket' => '<path d="M17 7h30v31l-15 8-15-8zM17 14h30"/>',
-    'sidePocket' => '<path d="M22 5h28v38H19l3-38zM23 12h26"/>',
-    'roundNeck' => '<path d="M9 8h46v33H9zM24 8c0 16 16 16 16 0"/>',
-    'straightNeck' => '<path d="M9 8h46v33H9zM24 8v11h16V8"/>',
-    'buttons' => '<path d="M32 4v40"/><circle cx="32" cy="10" r="2"/><circle cx="32" cy="20" r="2"/><circle cx="32" cy="30" r="2"/><circle cx="32" cy="40" r="2"/>',
-    'lining' =>
-      '<path d="M15 5h34v38H15zM21 11h22v26H21zM21 11l22 26M43 11L21 37"/>',
-    'roundedHem' =>
-      '<path d="M11 6v23c0 17 42 17 42 0V6M17 6v21c0 11 30 11 30 0V6"/>',
-    'vent' => '<path d="M12 7h40v35H12zM32 27v15M25 27h14"/>',
-    'lapels' => '<path d="M13 5h38v40H13zM23 5l9 16 9-16M23 5l-5 20 14-4M41 5l5 20-14-4"/>',
-    _ => '<rect x="12" y="6" width="40" height="36"/>',
-  };
-  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 48">'
-      '<g fill="none" stroke="#111111" stroke-width="2" '
-      'stroke-linecap="round" stroke-linejoin="round">$drawing</g></svg>';
 }
 
 void _addCustomerBill(
@@ -759,515 +698,391 @@ void _addCustomerBill(
   required String locale,
   required PdfPageFormat pageFormat,
 }) {
-  final direction = rtl ? pw.TextDirection.rtl : pw.TextDirection.ltr;
   final shopName = settings['shop_name']?.toString().trim() ?? '';
   final chargedFabrics = fabrics.where((row) => row['ownership'] == 'shop');
   final total = order['total'] as int? ?? 0;
   final paid = order['paid'] as int? ?? 0;
   final remaining = (total - paid).clamp(0, 1 << 60).toInt();
-  final stitchingTotal = order['stitching_total'] as int? ?? 0;
   final extra = order['extra'] as int? ?? 0;
+  final discount = order['discount'] as int? ?? 0;
   final fabricTotal = chargedFabrics.fold<int>(
     0,
     (sum, row) => sum + _fabricLineTotal(row),
   );
-  final discount = order['discount'] as int? ?? 0;
-  final summaryRows = <(String, int)>[
-    (l10n.stitchingAmount, stitchingTotal),
-    if (extra > 0) (l10n.extraCharge, extra),
-    (l10n.fabricAmount, fabricTotal),
-    if (discount > 0) (l10n.discount, -discount),
-  ];
+  String money(int value) => formatPaymentMoney(value, locale: locale);
+  pw.Widget detail(
+    String label,
+    String value, {
+    String? icon,
+    bool bold = false,
+    bool highlight = false,
+    bool ltrValue = false,
+  }) => _receiptRow(
+    label,
+    value,
+    rtl: rtl,
+    icon: icon,
+    bold: bold,
+    highlight: highlight,
+    ltrValue: ltrValue,
+  );
+
   document.addPage(
     pw.MultiPage(
       pageFormat: pageFormat,
-      textDirection: direction,
+      textDirection: rtl ? pw.TextDirection.rtl : pw.TextDirection.ltr,
       theme: document.theme,
-      header: (context) => _billHeader(
-        shopName: shopName.isEmpty ? l10n.shopName : shopName,
-        shopLogo: shopLogo,
-        address: settings['address']?.toString() ?? '',
-        phone: settings['phone']?.toString() ?? '',
-        order: order,
-        l10n: l10n,
+      header: (context) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          if (shopLogo != null) ...[
+            pw.SizedBox(
+              width: 36,
+              height: 30,
+              child: pw.Image(shopLogo, fit: pw.BoxFit.contain),
+            ),
+            pw.SizedBox(height: 4),
+          ],
+          pw.Text(
+            shopName.isEmpty ? l10n.shopName : shopName,
+            textDirection: _documentTextDirection(
+              shopName.isEmpty ? l10n.shopName : shopName,
+            ),
+            tightBounds: true,
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+          ),
+          if ('${settings['address'] ?? ''}'.trim().isNotEmpty) ...[
+            pw.SizedBox(height: 3),
+            pw.Text(
+              '${settings['address']}',
+              textDirection: _documentTextDirection('${settings['address']}'),
+              tightBounds: true,
+              textAlign: pw.TextAlign.center,
+              style: const pw.TextStyle(fontSize: 7),
+            ),
+          ],
+          if ('${settings['phone'] ?? ''}'.trim().isNotEmpty) ...[
+            pw.SizedBox(height: 4),
+            pw.Text(
+              '${settings['phone']}',
+              tightBounds: true,
+              textDirection: pw.TextDirection.ltr,
+              textAlign: pw.TextAlign.center,
+              style: const pw.TextStyle(fontSize: 8),
+            ),
+          ],
+          _receiptDivider(),
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.black,
+              borderRadius: pw.BorderRadius.circular(5),
+            ),
+            child: pw.Text(
+              l10n.customerReceiptTitle.toUpperCase(),
+              tightBounds: true,
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(
+                color: PdfColors.white,
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+          pw.SizedBox(height: 5),
+          detail(
+            l10n.receiptNumber,
+            '${order['bill_number'] ?? order['number'] ?? '-'}',
+            bold: true,
+            ltrValue: true,
+          ),
+          if (order['cancellation_status'] == 'Cancelled') ...[
+            pw.Text(
+              l10n.cancelled.toUpperCase(),
+              tightBounds: true,
+              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+            ),
+            if ('${order['cancellation_reason'] ?? ''}'.isNotEmpty)
+              detail(l10n.receiptReason, '${order['cancellation_reason']}'),
+            detail(
+              l10n.receiptRetainedCharge,
+              money((order['retained_charge'] as num?)?.toInt() ?? 0),
+              ltrValue: true,
+            ),
+          ] else if ((order['returned_total'] as num?)?.toInt() != 0) ...[
+            detail(
+              l10n.reportTransactionReturn,
+              '${order['latest_return_number'] ?? ''}',
+              bold: true,
+              ltrValue: true,
+            ),
+            detail(
+              l10n.total,
+              money((order['returned_total'] as num).toInt()),
+              ltrValue: true,
+            ),
+            if ('${order['latest_return_reason'] ?? ''}'.isNotEmpty)
+              detail(l10n.receiptReason, '${order['latest_return_reason']}'),
+          ],
+          if ((order['current_revision'] as num?)?.toInt() != 0)
+            detail(
+              l10n.receiptRevision,
+              '${order['current_revision']}',
+              ltrValue: true,
+            ),
+          _receiptDivider(),
+        ],
       ),
       build: (context) => [
-        _billMeta(order, l10n, locale),
-        pw.SizedBox(height: 7),
-        pw.Text(
-          l10n.orderDetails,
-          style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+        detail(
+          l10n.customerId,
+          '${order['customer_code'] ?? order['customer_id'] ?? '-'}',
+          icon: 'id',
+          ltrValue: true,
         ),
-        pw.SizedBox(height: 3),
-        for (final line in lines)
-          _billLine(
+        detail(
+          l10n.receiptDate,
+          _displayDate(order['order_date'], locale),
+          icon: 'date',
+        ),
+        detail(
+          l10n.customer,
+          '${order['customer_name'] ?? '-'}',
+          icon: 'person',
+          bold: true,
+        ),
+        detail(
+          l10n.mobileNumber,
+          '${order['customer_phone'] ?? '-'}',
+          icon: 'phone',
+          ltrValue: true,
+        ),
+        if ('${order['due_date'] ?? ''}'.isNotEmpty)
+          detail(
+            l10n.receiptDelivery,
+            _displayDate(order['due_date'], locale),
+            icon: 'date',
+          ),
+        _receiptDivider(),
+        for (final line in lines) ...[
+          detail(
             l10n.garmentName(
               garmentFromKey(line['garment']) ?? Garment.shalwar,
             ),
-            '${l10n.quantity}: ${line['quantity']} · ${l10n.pricePerItem}: ${formatPaymentMoney(line['price_each'] as int? ?? 0, locale: locale)}',
-            null,
-            l10n,
-            locale,
-          ),
-        if (chargedFabrics.isNotEmpty) ...[
-          pw.SizedBox(height: 5),
-          pw.Text(
-            l10n.fabricAmount,
-            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-          ),
-          for (final line in chargedFabrics)
-            _billLine(
-              '${line['fabric_code'] ?? ''} ${line['fabric_name'] ?? ''}'
-                  .trim(),
-              '${_quantity(line['quantity_milli'] as int? ?? 0)} ${l10n.fabricFormMeter} · ${formatPaymentMoney(line['unit_price'] as int? ?? 0, locale: locale)} / ${l10n.fabricFormMeter}',
-              _fabricLineTotal(line),
-              l10n,
-              locale,
+            money(
+              (line['price_each'] as int? ?? 0) *
+                  (line['quantity'] as int? ?? 0),
             ),
+            icon: 'garment',
+            bold: true,
+            ltrValue: true,
+          ),
+          pw.Text(
+            '${l10n.quantity}: ${line['quantity']} × ${money(line['price_each'] as int? ?? 0)}',
+            tightBounds: true,
+            style: const pw.TextStyle(fontSize: 7),
+          ),
+          pw.SizedBox(height: 4),
         ],
-        pw.SizedBox(height: 7),
-        pw.Divider(color: PdfColors.black),
-        for (final row in summaryRows)
-          _amountRow(row.$1, formatPaymentMoney(row.$2, locale: locale)),
-        _amountRow(
-          l10n.total,
-          formatPaymentMoney(total, locale: locale),
-          prominent: true,
+        for (final line in chargedFabrics) ...[
+          detail(
+            '${line['fabric_code'] ?? ''} ${line['fabric_name'] ?? ''}'.trim(),
+            money(_fabricLineTotal(line)),
+            icon: 'garment',
+            bold: true,
+            ltrValue: true,
+          ),
+          pw.Text(
+            '${_quantity(line['quantity_milli'] as int? ?? 0)} ${l10n.fabricFormMeter} × ${money(line['unit_price'] as int? ?? 0)}',
+            tightBounds: true,
+            style: const pw.TextStyle(fontSize: 7),
+          ),
+          pw.SizedBox(height: 4),
+        ],
+        _receiptDivider(),
+        detail(
+          l10n.stitchingAmount,
+          money(order['stitching_total'] as int? ?? 0),
+          ltrValue: true,
         ),
-        _amountRow(
-          l10n.advancePayment,
-          formatPaymentMoney(paid, locale: locale),
+        if (fabricTotal != 0)
+          detail(l10n.fabricAmount, money(fabricTotal), ltrValue: true),
+        if (extra != 0) detail(l10n.extraCharge, money(extra), ltrValue: true),
+        if (discount != 0)
+          detail(l10n.discount, money(-discount), ltrValue: true),
+        detail(l10n.total, money(total), bold: true, ltrValue: true),
+        _receiptDivider(),
+        detail(
+          l10n.totalPaid,
+          money(paid),
+          icon: 'money',
+          highlight: true,
+          ltrValue: true,
         ),
-        _amountRow(
+        detail(
           l10n.remainingBalance,
-          formatPaymentMoney(remaining, locale: locale),
-          prominent: true,
+          money(remaining),
+          bold: true,
+          ltrValue: true,
         ),
-        if ((order['notes']?.toString().trim() ?? '').isNotEmpty) ...[
-          pw.SizedBox(height: 7),
-          _instructionPanel(l10n.orderInstructions, order['notes'].toString()),
-        ],
+        pw.Text(
+          paid >= total
+              ? l10n.paidInFull
+              : paid == 0
+              ? l10n.unpaid
+              : l10n.partiallyPaid,
+          tightBounds: true,
+          textAlign: pw.TextAlign.center,
+          style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+        ),
+        _receiptDivider(),
+        if ('${order['notes'] ?? ''}'.trim().isNotEmpty)
+          ..._workSlipInstructions(l10n.orderInstructions, '${order['notes']}'),
+        pw.SizedBox(height: 12),
+        pw.Center(
+          child: pw.Container(
+            width: 80,
+            decoration: const pw.BoxDecoration(
+              border: pw.Border(top: pw.BorderSide(width: .6)),
+            ),
+            padding: const pw.EdgeInsets.only(top: 4),
+            child: pw.Text(
+              l10n.receiptSignature,
+              tightBounds: true,
+              textAlign: pw.TextAlign.center,
+              style: const pw.TextStyle(fontSize: 7),
+            ),
+          ),
+        ),
+        pw.SizedBox(height: 9),
+        pw.Center(
+          child: pw.Text(
+            l10n.receiptThankYou,
+            tightBounds: true,
+            style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
+          ),
+        ),
+        pw.SizedBox(height: 6),
+        pw.Center(
+          child: pw.Text(
+            'Powered by Sultansoft Technologies',
+            textDirection: pw.TextDirection.ltr,
+            tightBounds: true,
+            textAlign: pw.TextAlign.center,
+            style: const pw.TextStyle(fontSize: 6),
+          ),
+        ),
       ],
     ),
   );
 }
 
-pw.Widget _pageHeader({
-  required String title,
-  required String shopName,
-  required pw.MemoryImage? shopLogo,
-  required Object? billNumber,
-  required AppLocalizations l10n,
-  bool compact = false,
-}) => pw.Container(
-  padding: const pw.EdgeInsets.only(bottom: 6),
-  margin: const pw.EdgeInsets.only(bottom: 8),
-  decoration: const pw.BoxDecoration(
-    border: pw.Border(
-      bottom: pw.BorderSide(color: PdfColors.black, width: 1.2),
-    ),
-  ),
-  child: compact
-      ? _compactMeasurementHeader(
-          title: title,
-          shopName: shopName,
-          shopLogo: shopLogo,
-          billNumber: billNumber,
-          l10n: l10n,
-        )
-      : pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Expanded(
-              child: pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.center,
-                children: [
-                  if (shopLogo != null) ...[
-                    pw.SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: pw.Image(shopLogo, fit: pw.BoxFit.contain),
-                    ),
-                    pw.SizedBox(width: 7),
-                  ],
-                  pw.Expanded(
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          shopName,
-                          style: pw.TextStyle(
-                            fontSize: 15,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                        pw.Text(title, style: const pw.TextStyle(fontSize: 9)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.end,
-              children: [
-                pw.Text(
-                  l10n.billNumber,
-                  style: const pw.TextStyle(fontSize: 8),
-                ),
-                pw.Text(
-                  '$billNumber',
-                  style: pw.TextStyle(
-                    fontSize: 17,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ],
+pw.Widget _receiptDivider() => pw.Padding(
+  padding: const pw.EdgeInsets.symmetric(vertical: 5),
+  child: pw.Row(
+    children: List.generate(
+      26,
+      (_) => pw.Expanded(
+        child: pw.Container(
+          height: .5,
+          color: PdfColors.black,
+          margin: const pw.EdgeInsets.symmetric(horizontal: 1),
         ),
-);
-
-pw.Widget _compactMeasurementHeader({
-  required String title,
-  required String shopName,
-  required pw.MemoryImage? shopLogo,
-  required Object? billNumber,
-  required AppLocalizations l10n,
-}) => pw.Column(
-  crossAxisAlignment: pw.CrossAxisAlignment.center,
-  children: [
-    pw.Row(
-      mainAxisAlignment: pw.MainAxisAlignment.center,
-      children: [
-        if (shopLogo != null) ...[
-          pw.SizedBox(
-            width: 24,
-            height: 24,
-            child: pw.Image(shopLogo, fit: pw.BoxFit.contain),
-          ),
-          pw.SizedBox(width: 4),
-        ],
-        pw.Flexible(
-          child: pw.Text(
-            shopName,
-            textAlign: pw.TextAlign.center,
-            style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
-          ),
-        ),
-      ],
-    ),
-    pw.Text(title, style: const pw.TextStyle(fontSize: 8)),
-    pw.SizedBox(height: 2),
-    pw.Text(l10n.billNumber, style: const pw.TextStyle(fontSize: 7)),
-    pw.Text(
-      '$billNumber',
-      textAlign: pw.TextAlign.center,
-      style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
-    ),
-  ],
-);
-
-pw.Widget _billHeader({
-  required String shopName,
-  required pw.MemoryImage? shopLogo,
-  required String address,
-  required String phone,
-  required Map<String, Object?> order,
-  required AppLocalizations l10n,
-}) => pw.Container(
-  padding: const pw.EdgeInsets.only(bottom: 6),
-  margin: const pw.EdgeInsets.only(bottom: 7),
-  decoration: const pw.BoxDecoration(
-    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 1)),
-  ),
-  child: pw.Column(
-    crossAxisAlignment: pw.CrossAxisAlignment.center,
-    children: [
-      pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.center,
-        crossAxisAlignment: pw.CrossAxisAlignment.center,
-        children: [
-          if (shopLogo != null) ...[
-            pw.SizedBox(
-              width: 30,
-              height: 30,
-              child: pw.Image(shopLogo, fit: pw.BoxFit.contain),
-            ),
-            pw.SizedBox(width: 5),
-          ],
-          pw.Flexible(
-            child: pw.Text(
-              shopName,
-              textAlign: pw.TextAlign.center,
-              style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
-            ),
-          ),
-        ],
       ),
-      if (address.trim().isNotEmpty)
-        pw.Text(
-          address,
-          textAlign: pw.TextAlign.center,
-          style: const pw.TextStyle(fontSize: 8),
-        ),
-      if (phone.trim().isNotEmpty)
-        pw.Text(
-          '${l10n.mobileNumber}: $phone',
-          textAlign: pw.TextAlign.center,
-          style: const pw.TextStyle(fontSize: 8),
-        ),
-      pw.SizedBox(height: 4),
-      pw.Text(
-        '${order['bill_number'] ?? order['number'] ?? ''}',
-        textAlign: pw.TextAlign.center,
-        style: pw.TextStyle(fontSize: 17, fontWeight: pw.FontWeight.bold),
-      ),
-      if (order['cancellation_status'] == 'Cancelled') ...[
-        pw.SizedBox(height: 3),
-        pw.Container(
-          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.red, width: 1.2),
-          ),
-          child: pw.Text(
-            l10n.cancelled.toUpperCase(),
-            style: pw.TextStyle(
-              color: PdfColors.red,
-              fontSize: 12,
-              fontWeight: pw.FontWeight.bold,
-            ),
-          ),
-        ),
-        if ((order['cancellation_reason'] as String?)?.isNotEmpty == true)
-          pw.Text(
-            'Reason: ${order['cancellation_reason']}',
-            style: const pw.TextStyle(fontSize: 8),
-          ),
-        pw.Text(
-          'Retained charge: ${formatMoney((order['retained_charge'] as num?)?.toInt() ?? 0)}',
-          style: const pw.TextStyle(fontSize: 8),
-        ),
-      ] else if ((order['returned_total'] as num?)?.toInt() != 0) ...[
-        pw.SizedBox(height: 3),
-        pw.Text(
-          '${l10n.reportTransactionReturn}: ${order['latest_return_number'] ?? ''} · ${formatMoney((order['returned_total'] as num).toInt())}',
-          style: pw.TextStyle(
-            color: PdfColors.blue800,
-            fontSize: 9,
-            fontWeight: pw.FontWeight.bold,
-          ),
-        ),
-        if ((order['latest_return_reason'] as String?)?.isNotEmpty == true)
-          pw.Text(
-            'Reason: ${order['latest_return_reason']}',
-            style: const pw.TextStyle(fontSize: 8),
-          ),
-      ],
-      if ((order['current_revision'] as num?)?.toInt() != 0)
-        pw.Text(
-          'Revision #${order['current_revision']}',
-          style: const pw.TextStyle(fontSize: 8),
-        ),
-    ],
+    ),
   ),
 );
 
-pw.Widget _orderMeta(
-  Map<String, Object?> order,
-  AppLocalizations l10n,
-  String locale, {
-  bool narrowRoll = false,
-  bool rtl = true,
-}) => pw.Table(
-  border: pw.TableBorder.all(color: PdfColors.grey700, width: .5),
-  columnWidths: narrowRoll
-      ? rtl
-            ? const {0: pw.FlexColumnWidth(1.6), 1: pw.FlexColumnWidth(1)}
-            : const {0: pw.FlexColumnWidth(1), 1: pw.FlexColumnWidth(1.6)}
-      : const {
-          0: pw.FlexColumnWidth(1),
-          1: pw.FlexColumnWidth(1),
-          2: pw.FlexColumnWidth(1),
-        },
-  children: narrowRoll
-      ? [
-          for (final item in [
-            (l10n.customer, order['customer_name']),
-            (l10n.mobileNumber, order['customer_phone']),
-            (l10n.customerId, order['customer_code'] ?? order['customer_id']),
-            (l10n.orderDate, _displayDate(order['order_date'], locale)),
-            (l10n.deliveryDate, _displayDate(order['due_date'], locale)),
-            (l10n.billNumber, order['bill_number']),
-          ])
-            pw.TableRow(
-              children: rtl
-                  ? [
-                      _compactMetaCell(item.$2, fontSize: 8, bold: true),
-                      _compactMetaCell(item.$1, fontSize: 7),
-                    ]
-                  : [
-                      _compactMetaCell(item.$1, fontSize: 7),
-                      _compactMetaCell(item.$2, fontSize: 8, bold: true),
-                    ],
-            ),
-        ]
-      : [
-          pw.TableRow(
-            children: _wideMetaCells([
-              _metaCell(l10n.customer, order['customer_name']),
-              _metaCell(l10n.mobileNumber, order['customer_phone']),
-              _metaCell(
-                l10n.customerId,
-                order['customer_code'] ?? order['customer_id'],
-              ),
-            ], rtl),
-          ),
-          pw.TableRow(
-            children: _wideMetaCells([
-              _metaCell(
-                l10n.orderDate,
-                _displayDate(order['order_date'], locale),
-              ),
-              _metaCell(
-                l10n.deliveryDate,
-                _displayDate(order['due_date'], locale),
-              ),
-              _metaCell(l10n.billNumber, order['bill_number']),
-            ], rtl),
-          ),
-        ],
-);
-
-List<pw.Widget> _wideMetaCells(List<pw.Widget> cells, bool rtl) =>
-    rtl ? cells.reversed.toList() : cells;
-
-pw.Widget _compactMetaCell(
-  Object? value, {
-  required double fontSize,
+pw.Widget _receiptRow(
+  String label,
+  String value, {
+  required bool rtl,
+  String? icon,
   bool bold = false,
-}) => pw.Padding(
-  padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-  child: pw.Text(
-    '${value ?? '—'}',
-    style: pw.TextStyle(
-      fontSize: fontSize,
-      fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-    ),
-  ),
-);
-
-pw.Widget _billMeta(
-  Map<String, Object?> order,
-  AppLocalizations l10n,
-  String locale,
-) => pw.Column(
-  crossAxisAlignment: pw.CrossAxisAlignment.start,
-  children: [
-    _amountRow(l10n.customer, '${order['customer_name'] ?? ''}'),
-    _amountRow(l10n.mobileNumber, '${order['customer_phone'] ?? ''}'),
-    _amountRow(l10n.orderDate, _displayDate(order['order_date'], locale)),
-    _amountRow(l10n.deliveryDate, _displayDate(order['due_date'], locale)),
-  ],
-);
-
-pw.Widget _metaCell(String label, Object? value) => pw.Padding(
-  padding: const pw.EdgeInsets.all(5),
-  child: pw.Column(
-    crossAxisAlignment: pw.CrossAxisAlignment.start,
-    children: [
-      pw.Text(label, style: const pw.TextStyle(fontSize: 7)),
-      pw.Text(
-        '${value ?? '—'}',
-        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+  bool highlight = false,
+  bool ltrValue = false,
+}) {
+  final valueCell = pw.Expanded(
+    flex: 11,
+    child: pw.Container(
+      padding: pw.EdgeInsets.symmetric(
+        horizontal: highlight ? 4 : 0,
+        vertical: highlight ? 4 : 0,
       ),
-    ],
-  ),
-);
-
-pw.Widget _billLine(
-  String title,
-  String detail,
-  int? amount,
-  AppLocalizations l10n,
-  String locale,
-) => pw.Container(
-  padding: const pw.EdgeInsets.symmetric(vertical: 3),
-  decoration: const pw.BoxDecoration(
-    border: pw.Border(
-      bottom: pw.BorderSide(color: PdfColors.grey600, width: .4),
-    ),
-  ),
-  child: pw.Column(
-    crossAxisAlignment: pw.CrossAxisAlignment.start,
-    children: [
-      pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Expanded(
-            child: pw.Text(
-              title,
-              style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-            ),
+      decoration: highlight
+          ? pw.BoxDecoration(
+              color: PdfColors.black,
+              borderRadius: pw.BorderRadius.circular(3),
+            )
+          : null,
+      child: pw.FittedBox(
+        fit: pw.BoxFit.scaleDown,
+        alignment: rtl ? pw.Alignment.centerLeft : pw.Alignment.centerRight,
+        child: pw.Text(
+          value,
+          tightBounds: true,
+          textDirection: ltrValue
+              ? pw.TextDirection.ltr
+              : _documentTextDirection(value),
+          style: pw.TextStyle(
+            fontSize: highlight ? 10 : 8.5,
+            color: highlight ? PdfColors.white : PdfColors.black,
+            fontWeight: bold || highlight
+                ? pw.FontWeight.bold
+                : pw.FontWeight.normal,
           ),
-          if (amount != null)
-            pw.Text(
-              formatPaymentMoney(amount, locale: locale),
-              style: const pw.TextStyle(fontSize: 9),
-            ),
-        ],
+        ),
       ),
-      pw.Text(detail, style: const pw.TextStyle(fontSize: 7)),
-    ],
-  ),
-);
-
-pw.Widget _amountRow(String label, String value, {bool prominent = false}) =>
-    pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+    ),
+  );
+  final labelCell = pw.Expanded(
+    flex: 10,
+    child: pw.Text(
+      label,
+      tightBounds: true,
+      textDirection: rtl ? pw.TextDirection.rtl : pw.TextDirection.ltr,
+      style: pw.TextStyle(
+        fontSize: 7.5,
+        fontWeight: bold || highlight
+            ? pw.FontWeight.bold
+            : pw.FontWeight.normal,
+      ),
+    ),
+  );
+  final iconCell = icon == null
+      ? null
+      : pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 2),
+          child: pw.SvgImage(svg: _receiptIconSvg(icon), width: 9, height: 9),
+        );
+  return pw.Padding(
+    padding: const pw.EdgeInsets.symmetric(vertical: 3),
+    child: pw.Directionality(
+      textDirection: pw.TextDirection.ltr,
       child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Expanded(
-            child: pw.Text(
-              label,
-              style: pw.TextStyle(
-                fontSize: prominent ? 10 : 8,
-                fontWeight: prominent
-                    ? pw.FontWeight.bold
-                    : pw.FontWeight.normal,
-              ),
-            ),
-          ),
-          pw.Text(
-            value,
-            style: pw.TextStyle(
-              fontSize: prominent ? 10 : 8,
-              fontWeight: prominent ? pw.FontWeight.bold : pw.FontWeight.normal,
-            ),
-          ),
-        ],
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: rtl
+            ? [valueCell, pw.SizedBox(width: 5), labelCell, ?iconCell]
+            : [?iconCell, labelCell, pw.SizedBox(width: 5), valueCell],
       ),
-    );
+    ),
+  );
+}
 
-pw.Widget _instructionPanel(String label, String value) => pw.Container(
-  width: double.infinity,
-  padding: const pw.EdgeInsets.all(6),
-  decoration: pw.BoxDecoration(
-    border: pw.Border.all(color: PdfColors.grey700, width: .5),
-  ),
-  child: pw.Column(
-    crossAxisAlignment: pw.CrossAxisAlignment.start,
-    children: [
-      pw.Text(
-        label,
-        style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
-      ),
-      pw.SizedBox(height: 2),
-      pw.Text(value, style: const pw.TextStyle(fontSize: 8)),
-    ],
-  ),
-);
+String _receiptIconSvg(String icon) {
+  final shape = switch (icon) {
+    'person' =>
+      '<circle cx="12" cy="6" r="3"/><path d="M5 21v-3a7 7 0 0 1 14 0v3Z"/>',
+    'phone' =>
+      '<path d="m6 3 4 4-3 3c2 4 3 5 7 7l3-3 4 4-2 3C10 22 2 14 3 5Z"/>',
+    'date' => '<rect x="3" y="5" width="18" height="16" rx="1"/><path d="M3 10h18M7 2v6m10-6v6M7 14h2m3 0h2m3 0h1M7 18h2m3 0h2"/>',
+    'id' => '<rect x="2" y="4" width="20" height="16" rx="1"/><circle cx="8" cy="10" r="2"/><path d="M5 17v-1a3 3 0 0 1 6 0v1m3-9h5m-5 4h5m-5 4h5"/>',
+    'garment' => '<path d="m8 3-6 4 3 5 3-2v11h8V10l3 2 3-5-6-4-4 3Z"/>',
+    _ => '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v5c0 4 16 4 16 0V5M4 10v5c0 4 16 4 16 0v-5M4 15v4c0 4 16 4 16 0v-4"/>',
+  };
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="black" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">$shape</g></svg>';
+}
 
 Map<String, String> _decodeSnapshot(Object? raw) {
   try {

@@ -1,4 +1,13 @@
 {
+  "customerReceiptTitle": "د پېرودونکي رسید",
+  "receiptNumber": "د رسید شمېره",
+  "receiptDate": "نېټه",
+  "receiptDelivery": "سپارل",
+  "receiptSignature": "لاسلیک",
+  "receiptThankYou": "مننه!",
+  "receiptRevision": "سمون",
+  "receiptReason": "لامل",
+  "receiptRetainedCharge": "ساتل شوې پیسې",
   "loginBrandHeading": "ستاسو دوکان، په نظم کې.",
   "loginBrandMessage": "پېرودونکي، اندازې، فرمایشونه او حسابونه په یوه ځای کې اداره کړئ.",
   "loginWelcomeBack": "بیا ښه راغلاست.",

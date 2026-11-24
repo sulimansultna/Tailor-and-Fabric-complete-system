@@ -101,6 +101,60 @@ abstract class AppLocalizations {
     Locale('ps'),
   ];
 
+  /// No description provided for @customerReceiptTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Customer receipt'**
+  String get customerReceiptTitle;
+
+  /// No description provided for @receiptNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Receipt No.'**
+  String get receiptNumber;
+
+  /// No description provided for @receiptDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Date'**
+  String get receiptDate;
+
+  /// No description provided for @receiptDelivery.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery'**
+  String get receiptDelivery;
+
+  /// No description provided for @receiptSignature.
+  ///
+  /// In en, this message translates to:
+  /// **'Signature'**
+  String get receiptSignature;
+
+  /// No description provided for @receiptThankYou.
+  ///
+  /// In en, this message translates to:
+  /// **'Thank you!'**
+  String get receiptThankYou;
+
+  /// No description provided for @receiptRevision.
+  ///
+  /// In en, this message translates to:
+  /// **'Revision'**
+  String get receiptRevision;
+
+  /// No description provided for @receiptReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Reason'**
+  String get receiptReason;
+
+  /// No description provided for @receiptRetainedCharge.
+  ///
+  /// In en, this message translates to:
+  /// **'Retained charge'**
+  String get receiptRetainedCharge;
+
   /// No description provided for @loginBrandHeading.
   ///
   /// In en, this message translates to:

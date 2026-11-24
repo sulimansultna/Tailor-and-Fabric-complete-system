@@ -10,6 +10,33 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get customerReceiptTitle => 'رسید مشتری';
+
+  @override
+  String get receiptNumber => 'شمارهٔ رسید';
+
+  @override
+  String get receiptDate => 'تاریخ';
+
+  @override
+  String get receiptDelivery => 'تحویل';
+
+  @override
+  String get receiptSignature => 'امضا';
+
+  @override
+  String get receiptThankYou => 'تشکر!';
+
+  @override
+  String get receiptRevision => 'ویرایش';
+
+  @override
+  String get receiptReason => 'دلیل';
+
+  @override
+  String get receiptRetainedCharge => 'مبلغ نگه‌داشته‌شده';
+
+  @override
   String get loginBrandHeading => 'فروشگاه‌تان، منظم و مرتب.';
 
   @override
@@ -2962,6 +2989,33 @@ class AppLocalizationsFa extends AppLocalizations {
 /// The translations for Persian, as used in Afghanistan (`fa_AF`).
 class AppLocalizationsFaAf extends AppLocalizationsFa {
   AppLocalizationsFaAf() : super('fa_AF');
+
+  @override
+  String get customerReceiptTitle => 'رسید مشتری';
+
+  @override
+  String get receiptNumber => 'شمارهٔ رسید';
+
+  @override
+  String get receiptDate => 'تاریخ';
+
+  @override
+  String get receiptDelivery => 'تحویل';
+
+  @override
+  String get receiptSignature => 'امضا';
+
+  @override
+  String get receiptThankYou => 'تشکر!';
+
+  @override
+  String get receiptRevision => 'ویرایش';
+
+  @override
+  String get receiptReason => 'دلیل';
+
+  @override
+  String get receiptRetainedCharge => 'مبلغ نگه‌داشته‌شده';
 
   @override
   String get loginBrandHeading => 'فروشگاه‌تان، منظم و مرتب.';

@@ -10,6 +10,33 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get customerReceiptTitle => 'Customer receipt';
+
+  @override
+  String get receiptNumber => 'Receipt No.';
+
+  @override
+  String get receiptDate => 'Date';
+
+  @override
+  String get receiptDelivery => 'Delivery';
+
+  @override
+  String get receiptSignature => 'Signature';
+
+  @override
+  String get receiptThankYou => 'Thank you!';
+
+  @override
+  String get receiptRevision => 'Revision';
+
+  @override
+  String get receiptReason => 'Reason';
+
+  @override
+  String get receiptRetainedCharge => 'Retained charge';
+
+  @override
   String get loginBrandHeading => 'Your shop, organized.';
 
   @override

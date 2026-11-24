@@ -1,4 +1,13 @@
 {
+  "customerReceiptTitle": "Customer receipt",
+  "receiptNumber": "Receipt No.",
+  "receiptDate": "Date",
+  "receiptDelivery": "Delivery",
+  "receiptSignature": "Signature",
+  "receiptThankYou": "Thank you!",
+  "receiptRevision": "Revision",
+  "receiptReason": "Reason",
+  "receiptRetainedCharge": "Retained charge",
   "loginBrandHeading": "Your shop, organized.",
   "loginBrandMessage": "Manage customers, measurements, orders, and accounts in one place.",
   "loginWelcomeBack": "Welcome back.",

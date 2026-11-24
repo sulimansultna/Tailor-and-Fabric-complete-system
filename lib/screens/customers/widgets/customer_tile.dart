@@ -1,12 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../../../commands/app_commands.dart';
 
 import '../../../core/formatters.dart';
 import '../../../data/shop_database.dart';
 import '../../../dialogs/customer_record_actions.dart';
 import '../../../l10n/app_localizations_extensions.dart';
+import '../../../widgets/responsive_layout.dart';
 import '../customer_profile_screen.dart';
+
+/// Shared column widths keep the customer headings aligned with compact rows.
+class CustomerTableColumns extends StatelessWidget {
+  const CustomerTableColumns({
+    super.key,
+    required this.name,
+    required this.code,
+    required this.phone,
+    required this.activeOrders,
+    required this.balance,
+    required this.actions,
+  });
+
+  final Widget name;
+  final Widget code;
+  final Widget phone;
+  final Widget activeOrders;
+  final Widget balance;
+  final Widget Function(bool expanded) actions;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final textFactor = ResponsiveLayout.textFactor(context);
+      final showCode = constraints.maxWidth >= 960 * textFactor;
+      final expandedActions = constraints.maxWidth >= 1080 * textFactor;
+      Widget cell(Widget child, int flex) => Expanded(
+        flex: flex,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(end: 10),
+          child: child,
+        ),
+      );
+      return Row(
+        children: [
+          cell(name, 4),
+          if (showCode) cell(code, 2),
+          cell(phone, 3),
+          cell(activeOrders, 2),
+          cell(balance, 2),
+          SizedBox(
+            width: expandedActions ? 184 : 76,
+            child: actions(expandedActions),
+          ),
+        ],
+      );
+    },
+  );
+}
 
 class CustomerTile extends StatelessWidget {
   const CustomerTile({
@@ -54,7 +105,13 @@ class CustomerTile extends StatelessWidget {
       );
     }
 
-    final actions = CustomerRecordActions(context, database, customer, onChanged, archived: archived);
+    final actions = CustomerRecordActions(
+      context,
+      database,
+      customer,
+      onChanged,
+      archived: archived,
+    );
     Future<void> edit() => actions.edit();
     Future<void> archive() => actions.archive();
     Future<void> delete() => actions.delete();
@@ -75,7 +132,10 @@ class CustomerTile extends StatelessWidget {
           child: ListTile(
             leading: const Icon(Icons.edit_outlined),
             title: Text(l10n.editCustomer),
-            trailing: Text(commandShortcutLabels[CommandKey.edit]!, textDirection: TextDirection.ltr),
+            trailing: Text(
+              commandShortcutLabels[CommandKey.edit]!,
+              textDirection: TextDirection.ltr,
+            ),
             contentPadding: EdgeInsets.zero,
           ),
         ),
@@ -94,14 +154,17 @@ class CustomerTile extends StatelessWidget {
           child: ListTile(
             leading: const Icon(Icons.delete_outline),
             title: Text(l10n.deleteCustomer),
-            trailing: Text(commandShortcutLabels[CommandKey.remove]!, textDirection: TextDirection.ltr),
+            trailing: Text(
+              commandShortcutLabels[CommandKey.remove]!,
+              textDirection: TextDirection.ltr,
+            ),
             contentPadding: EdgeInsets.zero,
           ),
         ),
       ],
       child: const Padding(
-        padding: EdgeInsets.all(10),
-        child: Icon(Icons.more_horiz),
+        padding: EdgeInsets.all(8),
+        child: Icon(Icons.more_horiz, size: 20),
       ),
     );
 
@@ -113,10 +176,14 @@ class CustomerTile extends StatelessWidget {
         ),
       ),
       icon: const Icon(Icons.arrow_forward_outlined, size: 18),
-      label: Text(l10n.openProfile),
+      label: Text(
+        l10n.openProfile,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
     final avatar = CircleAvatar(
-      radius: 20,
+      radius: wide ? 16 : 20,
       backgroundColor: Theme.of(context).colorScheme.primaryContainer,
       foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
       child: Text(name.isNotEmpty ? name.characters.first.toUpperCase() : '?'),
@@ -124,7 +191,7 @@ class CustomerTile extends StatelessWidget {
     final nameBlock = Row(
       children: [
         avatar,
-        const SizedBox(width: 12),
+        SizedBox(width: wide ? 10 : 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,6 +223,7 @@ class CustomerTile extends StatelessWidget {
             textDirection: TextDirection.ltr,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            style: wide ? Theme.of(context).textTheme.bodySmall : null,
           ),
         ),
         IconButton(
@@ -167,12 +235,18 @@ class CustomerTile extends StatelessWidget {
     );
     final balanceBlock = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          formatMoney(balance.abs(), locale: locale),
-          textDirection: TextDirection.ltr,
-          style: Theme.of(context).textTheme.titleSmall
-              ?.copyWith(color: balanceColor, fontWeight: FontWeight.w800),
+        Tooltip(
+          message: formatMoney(balance.abs(), locale: locale),
+          child: Text(
+            formatMoney(balance.abs(), locale: locale),
+            textDirection: TextDirection.ltr,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(color: balanceColor, fontWeight: FontWeight.w800),
+          ),
         ),
         Text(
           balanceLabel,
@@ -196,29 +270,53 @@ class CustomerTile extends StatelessWidget {
         ),
         child: Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: wide ? 16 : 14,
-            vertical: wide ? 8 : 14,
+            horizontal: wide ? 12 : 14,
+            vertical: wide ? 6 : 14,
           ),
           child: wide
-              ? Row(
-                  children: [
-                    Expanded(flex: 4, child: nameBlock),
-                    Expanded(
-                      flex: 2,
-                      child: Text(code, textDirection: TextDirection.ltr),
-                    ),
-                    Expanded(flex: 3, child: phoneBlock),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        '$activeOrders',
-                        textDirection: TextDirection.ltr,
+              ? CustomerTableColumns(
+                  name: nameBlock,
+                  code: Text(
+                    code,
+                    textDirection: TextDirection.ltr,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  phone: phoneBlock,
+                  activeOrders: Text(
+                    '$activeOrders',
+                    textDirection: TextDirection.ltr,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  balance: balanceBlock,
+                  actions: (expanded) => Row(
+                    children: [
+                      Expanded(
+                        child: expanded
+                            ? openAction
+                            : IconButton(
+                                tooltip: l10n.openProfile,
+                                onPressed: () =>
+                                    Navigator.of(context).push<void>(
+                                      MaterialPageRoute(
+                                        builder: (_) => CustomerProfileScreen(
+                                          database: database,
+                                          customer: customer,
+                                        ),
+                                      ),
+                                    ),
+                                icon: const Icon(
+                                  Icons.arrow_forward_outlined,
+                                  size: 18,
+                                ),
+                              ),
                       ),
-                    ),
-                    Expanded(flex: 2, child: balanceBlock),
-                    openAction,
-                    menu,
-                  ],
+                      menu,
+                    ],
+                  ),
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

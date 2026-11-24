@@ -23,6 +23,12 @@ Future<T?> showResponsiveDialog<T>({
 
 /// Breakpoints are measured in logical pixels and allow room for larger text.
 abstract final class ResponsiveLayout {
+  /// Wide laptop windows can still have little vertical space after DPI scaling.
+  static bool isCompactWindow(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    return size.width < 1200 || size.height < 820;
+  }
+
   static double textFactor(BuildContext context) =>
       (MediaQuery.textScalerOf(context).scale(14) / 14).clamp(1.0, 1.5);
 

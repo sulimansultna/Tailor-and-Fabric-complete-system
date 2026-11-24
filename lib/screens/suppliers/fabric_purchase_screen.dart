@@ -14,6 +14,7 @@ import 'supplier_purchase_logic.dart';
 import 'widgets/fabric_purchase_option_card.dart';
 import 'widgets/purchase_invoice_line_card.dart';
 import 'widgets/purchase_panel_shell.dart';
+import 'widgets/supplier_ledger_view.dart';
 
 typedef FabricPurchasePrinter = Future<bool> Function(
   ShopDatabase database,
@@ -2610,37 +2611,10 @@ class _FabricPurchaseScreenState extends State<FabricPurchaseScreen> {
     if (supplier == null) return;
     final rows = await widget.database.supplierLedger(_supplierId!);
     if (!mounted) return;
-    await showDialog<void>(
+    await showSupplierLedger(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${_t('viewLedger')} · ${supplier['name']}'),
-        content: SizedBox(
-          width: 560,
-          child: rows.isEmpty
-              ? Text(_t('noLedger'))
-              : ListView(
-                  shrinkWrap: true,
-                  children: [
-                    for (final row in rows)
-                      ListTile(
-                        dense: true,
-                        title: Text(
-                          '${row['reference']} · ${row['description']}',
-                        ),
-                        subtitle: Text(
-                          '${formatDate(row['date'].toString(), locale: Localizations.localeOf(context).toLanguageTag())} · ${_t('charge')}: ${_money((row['charge'] as num).toInt())} · ${_t('payment')}: ${_money((row['payment'] as num).toInt())}',
-                        ),
-                      ),
-                  ],
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(_t('cancel')),
-          ),
-        ],
-      ),
+      supplier: supplier,
+      entries: rows,
     );
   }
 }

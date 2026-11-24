@@ -109,24 +109,76 @@ class _CustomersPageState extends State<CustomersScreen> {
     AppCommand('customers.add', _addCustomer, aliases: [CommandKey.add]),
     AppCommand(CommandKey.search, searchFocus.requestFocus),
     AppCommand(CommandKey.refresh, _load),
-    AppCommand('customers.edit', () => _customerCommand((row) async {
-      await CustomerRecordActions(context, widget.database, row, _load).edit();
-    }), aliases: [CommandKey.edit]),
-    AppCommand('customers.remove', () => _customerCommand((row) async {
-      await CustomerRecordActions(context, widget.database, row, _load).delete();
-    }), aliases: [CommandKey.remove]),
-    AppCommand('customers.archive', () => _customerCommand((row) => CustomerRecordActions(context, widget.database, row, _load).archive())),
-    AppCommand('customers.restore', () => _customerCommand((row) async {
-      await CustomerRecordActions(context, widget.database, row, _load, archived: true).archive();
-    }, archived: true)),
-    AppCommand('customers.profile', () => _customerCommand((row) async {
-      await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => CustomerProfileScreen(database: widget.database, customer: row)));
-    })),
+    AppCommand(
+      'customers.edit',
+      () => _customerCommand((row) async {
+        await CustomerRecordActions(
+          context,
+          widget.database,
+          row,
+          _load,
+        ).edit();
+      }),
+      aliases: [CommandKey.edit],
+    ),
+    AppCommand(
+      'customers.remove',
+      () => _customerCommand((row) async {
+        await CustomerRecordActions(
+          context,
+          widget.database,
+          row,
+          _load,
+        ).delete();
+      }),
+      aliases: [CommandKey.remove],
+    ),
+    AppCommand(
+      'customers.archive',
+      () => _customerCommand(
+        (row) => CustomerRecordActions(
+          context,
+          widget.database,
+          row,
+          _load,
+        ).archive(),
+      ),
+    ),
+    AppCommand(
+      'customers.restore',
+      () => _customerCommand((row) async {
+        await CustomerRecordActions(
+          context,
+          widget.database,
+          row,
+          _load,
+          archived: true,
+        ).archive();
+      }, archived: true),
+    ),
+    AppCommand(
+      'customers.profile',
+      () => _customerCommand((row) async {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                CustomerProfileScreen(database: widget.database, customer: row),
+          ),
+        );
+      }),
+    ),
   ];
 
-  Future<void> _customerCommand(Future<void> Function(Map<String, Object?>) action, {bool archived = false}) =>
-      withCommandRecord(context, 'customer', widget.database.searchCustomers('', includeArchived: true), action,
-        eligible: archived ? (row) => (row['archived'] as num? ?? 0) != 0 : null);
+  Future<void> _customerCommand(
+    Future<void> Function(Map<String, Object?>) action, {
+    bool archived = false,
+  }) => withCommandRecord(
+    context,
+    'customer',
+    widget.database.searchCustomers('', includeArchived: true),
+    action,
+    eligible: archived ? (row) => (row['archived'] as num? ?? 0) != 0 : null,
+  );
 
   @override
   void dispose() {
@@ -137,187 +189,216 @@ class _CustomersPageState extends State<CustomersScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => CommandScope(commands: _keyboardCommands(), builder: (context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final l10n = context.l10n;
-      final compact = constraints.maxWidth < 980;
-      final compactRows = constraints.maxWidth < 1320;
-      final narrow = constraints.maxWidth < 520;
-      final padding = compact ? 16.0 : 28.0;
-      return RefreshIndicator(
-          onRefresh: _load,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverPadding(
-                padding: EdgeInsets.all(padding),
-                sliver: SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (narrow)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _title(context, l10n),
-                            const SizedBox(height: 12),
-                            CommandButton(register: false, aliases: const ['action.new'], id: 'customers.add', child: FilledButton.icon(
-                              onPressed: _addCustomer,
-                              icon: const Icon(Icons.person_add_alt_1_outlined),
-                              label: Text(l10n.addCustomer),
-                            )),
-                          ],
-                        )
-                      else
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: _title(context, l10n)),
-                            const SizedBox(width: 12),
-                            CommandButton(register: false, aliases: const ['action.new'], id: 'customers.add', child: FilledButton.icon(
-                              onPressed: _addCustomer,
-                              icon: const Icon(Icons.person_add_alt_1_outlined),
-                              label: Text(l10n.addCustomer),
-                            )),
-                          ],
-                        ),
-                      const SizedBox(height: 20),
-                      TextField(
-                        controller: controller,
-                        focusNode: searchFocus,
-                        textInputAction: TextInputAction.search,
-                        decoration: InputDecoration(
-                          labelText: l10n.searchCustomersHintFull,
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: controller.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  tooltip: l10n.clearSearch,
-                                  onPressed: controller.clear,
-                                  icon: const Icon(Icons.close),
-                                ),
-                          filled: true,
-                          fillColor: Theme.of(context).colorScheme.surface,
-                        ),
-                        onSubmitted: (_) => _load(),
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          _filterChip('all', l10n.filterAllCustomers),
-                          _filterChip('owing', l10n.filterWithOutstanding),
-                          _filterChip('active', l10n.filterWithActiveOrders),
-                          _filterChip('archived', l10n.filterArchived),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: compact ? 170 : 210,
-                            child: DropdownButtonFormField<String>(
-                              isExpanded: true,
-                              initialValue: sortBy,
-                              decoration: InputDecoration(
-                                labelText: l10n.sortCustomers,
-                                isDense: true,
-                              ),
-                              items: [
-                                DropdownMenuItem(
-                                  value: 'name',
-                                  child: Text(l10n.sortByName),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'newest',
-                                  child: Text(l10n.sortNewest),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'balance',
-                                  child: Text(l10n.sortOutstanding),
-                                ),
-                              ],
-                              onChanged: (value) {
-                                if (value == null) return;
-                                setState(() => sortBy = value);
-                                _load();
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Text(
-                            l10n.customersCount(rows.length),
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            tooltip: l10n.refresh,
-                            onPressed: _load,
-                            icon: const Icon(Icons.refresh),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (loading && rows.isEmpty)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (failed)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
+  Widget build(BuildContext context) => Theme(
+    data: _compactCustomerListTheme(Theme.of(context)),
+    child: CommandScope(
+      commands: _keyboardCommands(),
+      builder: (context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final l10n = context.l10n;
+          final compact = constraints.maxWidth < 980;
+          final stackedRows = constraints.maxWidth < 700;
+          final narrow = constraints.maxWidth < 520;
+          final padding = narrow ? 12.0 : 16.0;
+          return RefreshIndicator(
+            onRefresh: _load,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: EdgeInsets.all(padding),
+                  sliver: SliverToBoxAdapter(
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(l10n.searchError),
+                        if (narrow)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _title(context, l10n),
+                              const SizedBox(height: 12),
+                              CommandButton(
+                                register: false,
+                                aliases: const ['action.new'],
+                                id: 'customers.add',
+                                child: FilledButton.icon(
+                                  onPressed: _addCustomer,
+                                  icon: const Icon(
+                                    Icons.person_add_alt_1_outlined,
+                                  ),
+                                  label: Text(l10n.addCustomer),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: _title(context, l10n)),
+                              const SizedBox(width: 12),
+                              CommandButton(
+                                register: false,
+                                aliases: const ['action.new'],
+                                id: 'customers.add',
+                                child: FilledButton.icon(
+                                  onPressed: _addCustomer,
+                                  icon: const Icon(
+                                    Icons.person_add_alt_1_outlined,
+                                  ),
+                                  label: Text(l10n.addCustomer),
+                                ),
+                              ),
+                            ],
+                          ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          style: Theme.of(context).textTheme.bodyMedium,
+                          controller: controller,
+                          focusNode: searchFocus,
+                          textInputAction: TextInputAction.search,
+                          decoration: InputDecoration(
+                            labelText: l10n.searchCustomersHintFull,
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: controller.text.isEmpty
+                                ? null
+                                : IconButton(
+                                    tooltip: l10n.clearSearch,
+                                    onPressed: controller.clear,
+                                    icon: const Icon(Icons.close),
+                                  ),
+                            filled: true,
+                            fillColor: Theme.of(context).colorScheme.surface,
+                          ),
+                          onSubmitted: (_) => _load(),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            _filterChip('all', l10n.filterAllCustomers),
+                            _filterChip('owing', l10n.filterWithOutstanding),
+                            _filterChip('active', l10n.filterWithActiveOrders),
+                            _filterChip('archived', l10n.filterArchived),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: compact ? 170 : 210,
+                              child: DropdownButtonFormField<String>(
+                                style: Theme.of(context).textTheme.bodyMedium,
+                                isExpanded: true,
+                                initialValue: sortBy,
+                                decoration: InputDecoration(
+                                  labelText: l10n.sortCustomers,
+                                  isDense: true,
+                                ),
+                                items: [
+                                  DropdownMenuItem(
+                                    value: 'name',
+                                    child: Text(l10n.sortByName),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'newest',
+                                    child: Text(l10n.sortNewest),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'balance',
+                                    child: Text(l10n.sortOutstanding),
+                                  ),
+                                ],
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  setState(() => sortBy = value);
+                                  _load();
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: _load,
-                          icon: const Icon(Icons.refresh),
-                          label: Text(l10n.retry),
+                        Row(
+                          children: [
+                            Text(
+                              l10n.customersCount(rows.length),
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              tooltip: l10n.refresh,
+                              onPressed: _load,
+                              icon: const Icon(Icons.refresh),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                )
-              else if (rows.isEmpty)
-                SliverFillRemaining(hasScrollBody: false, child: _emptyState())
-              else
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(padding, 0, padding, 12),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      if (!compactRows && index == 0) return _tableHeader();
-                      final rowIndex = compactRows ? index : index - 1;
-                      return CommandRecordTarget(kind: 'customer', record: rows[rowIndex], child: CustomerTile(
-                        customer: rows[rowIndex],
-                        database: widget.database,
-                        wide: !compactRows,
-                        archived: filter == 'archived',
-                        onChanged: _load,
-                      ));
-                    }, childCount: rows.length + (compactRows ? 0 : 1)),
-                  ),
                 ),
-            ],
-          ),
-      );
-    },
-  ));
+                if (loading && rows.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (failed)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(l10n.searchError),
+                          const SizedBox(height: 8),
+                          OutlinedButton.icon(
+                            onPressed: _load,
+                            icon: const Icon(Icons.refresh),
+                            label: Text(l10n.retry),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (rows.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _emptyState(),
+                  )
+                else
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(padding, 0, padding, 12),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        if (!stackedRows && index == 0) return _tableHeader();
+                        final rowIndex = stackedRows ? index : index - 1;
+                        return CommandRecordTarget(
+                          kind: 'customer',
+                          record: rows[rowIndex],
+                          child: CustomerTile(
+                            customer: rows[rowIndex],
+                            database: widget.database,
+                            wide: !stackedRows,
+                            archived: filter == 'archived',
+                            onChanged: _load,
+                          ),
+                        );
+                      }, childCount: rows.length + (stackedRows ? 0 : 1)),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    ),
+  );
 
   Widget _title(BuildContext context, AppLocalizations l10n) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
         l10n.customers,
-        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
           color: Theme.of(context).colorScheme.onSurface,
           fontWeight: FontWeight.w800,
         ),
@@ -325,13 +406,15 @@ class _CustomersPageState extends State<CustomersScreen> {
       const SizedBox(height: 5),
       Text(
         l10n.manageCustomersDescription,
-        style: Theme.of(context).textTheme.bodyMedium
+        style: Theme.of(context).textTheme.bodySmall
             ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
       ),
     ],
   );
 
   Widget _filterChip(String value, String label) => FilterChip(
+    visualDensity: VisualDensity.compact,
+    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     label: Text(label),
     selected: filter == value,
     onSelected: (_) {
@@ -340,38 +423,28 @@ class _CustomersPageState extends State<CustomersScreen> {
     },
   );
 
-  Widget _tableHeader() => Padding(
-    padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 8),
-    child: Row(
-      children: [
-        const SizedBox(width: 44),
-        Expanded(
-          flex: 4,
-          child: Text(context.l10n.customer, style: _headerStyle(context)),
+  Widget _tableHeader() {
+    Widget heading(String label) => Text(
+      label,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: _headerStyle(context),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: CustomerTableColumns(
+        name: Padding(
+          padding: const EdgeInsetsDirectional.only(start: 42),
+          child: heading(context.l10n.customer),
         ),
-        Expanded(
-          flex: 2,
-          child: Text(context.l10n.customerId, style: _headerStyle(context)),
-        ),
-        Expanded(
-          flex: 3,
-          child: Text(context.l10n.mobileNumber, style: _headerStyle(context)),
-        ),
-        Expanded(
-          flex: 2,
-          child: Text(context.l10n.activeOrders, style: _headerStyle(context)),
-        ),
-        Expanded(
-          flex: 2,
-          child: Text(
-            context.l10n.outstandingBalance,
-            style: _headerStyle(context),
-          ),
-        ),
-        const SizedBox(width: 48),
-      ],
-    ),
-  );
+        code: heading(context.l10n.customerId),
+        phone: heading(context.l10n.mobileNumber),
+        activeOrders: heading(context.l10n.activeOrders),
+        balance: heading(context.l10n.outstandingBalance),
+        actions: (_) => const SizedBox.shrink(),
+      ),
+    );
+  }
 
   TextStyle? _headerStyle(BuildContext context) =>
       Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -405,14 +478,50 @@ class _CustomersPageState extends State<CustomersScreen> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 14),
-            CommandButton(register: false, aliases: const ['action.new'], id: 'customers.add', child: FilledButton.icon(
-              onPressed: _addCustomer,
-              icon: const Icon(Icons.person_add_alt_1_outlined),
-              label: Text(l10n.addCustomer),
-            )),
+            CommandButton(
+              register: false,
+              aliases: const ['action.new'],
+              id: 'customers.add',
+              child: FilledButton.icon(
+                onPressed: _addCustomer,
+                icon: const Icon(Icons.person_add_alt_1_outlined),
+                label: Text(l10n.addCustomer),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+ThemeData _compactCustomerListTheme(ThemeData theme) {
+  const controls = ButtonStyle(
+    visualDensity: VisualDensity.compact,
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    minimumSize: WidgetStatePropertyAll(Size(36, 36)),
+    padding: WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    ),
+  );
+  return theme.copyWith(
+    visualDensity: VisualDensity.compact,
+    filledButtonTheme: FilledButtonThemeData(
+      style: theme.filledButtonTheme.style?.merge(controls) ?? controls,
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: theme.textButtonTheme.style?.merge(controls) ?? controls,
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: theme.iconButtonTheme.style?.merge(controls) ?? controls,
+    ),
+    chipTheme: theme.chipTheme.copyWith(
+      labelStyle: theme.textTheme.labelMedium,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    ),
+    inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    ),
+  );
 }

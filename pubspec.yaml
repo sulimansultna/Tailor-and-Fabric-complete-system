@@ -78,7 +78,16 @@ hooks:
 flutter:
   generate: true
   assets:
-    - assets/icons/
+    - assets/icons/sidebar-dashboard.png
+    - assets/icons/sidebar-customers.png
+    - assets/icons/sidebar-orders.png
+    - assets/icons/sidebar-delivery.png
+    - assets/icons/sidebar-fabric.png
+    - assets/icons/sidebar-suppliers.png
+    - assets/icons/sidebar-expenses.png
+    - assets/icons/sidebar-reports.png
+    - assets/icons/sidebar-payments.png
+    - assets/icons/sidebar-settings.png
     - assets/images/tailoricon.png
     - assets/images/clothes.png
     - assets/images/waskoat.png
