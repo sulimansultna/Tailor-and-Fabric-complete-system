@@ -796,10 +796,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get coat => 'Coat';
 
   @override
-  String get kameezLength => 'Kameez length';
+  String get kameezLength => 'Shirt length';
 
   @override
-  String get shoulderWidth => 'Shoulder width';
+  String get shoulderWidth => 'Shoulder';
 
   @override
   String get sleeveLength => 'Sleeve length';
@@ -814,7 +814,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hipSeat => 'Hip / seat';
 
   @override
-  String get neckCollar => 'Neck / collar';
+  String get neckCollar => 'Collar';
 
   @override
   String get neck => 'Neck';
@@ -835,7 +835,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get thigh => 'Thigh';
 
   @override
-  String get bottomOpening => 'Bottom opening';
+  String get bottomOpening => 'Leg opening';
 
   @override
   String get waistcoatLength => 'Waistcoat length';
@@ -2991,4 +2991,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileLogoPreview => 'Logo preview';
+
+  @override
+  String get hemWidth => 'Hem width';
+
+  @override
+  String get measurementShortHeading => 'Size';
+
+  @override
+  String get designRoundHem => 'Round hem';
+
+  @override
+  String get designStraightHem => 'Straight hem';
+
+  @override
+  String get designPlainSleeve => 'Plain sleeve';
+
+  @override
+  String get designHalfBand => 'Half band';
+
+  @override
+  String get designFullBand => 'Full band';
+
+  @override
+  String get designIndianNeck => 'Indian neck';
+
+  @override
+  String get designShalwarPocket => 'Shalwar pocket';
+
+  @override
+  String get designPlainStitch => 'Plain stitching';
+
+  @override
+  String get designDoubleStitch => 'Double stitching';
+
+  @override
+  String get designSpecialStitch => 'Special stitching';
 }

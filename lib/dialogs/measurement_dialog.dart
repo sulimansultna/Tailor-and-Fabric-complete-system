@@ -161,8 +161,9 @@ Future<void> showMeasurementDialog(
                     l10n: l10n,
                     garment: garment,
                     choices: designChoices,
-                    onChanged: (key, value) =>
-                        setState(() => designChoices[key] = value),
+                    onChanged: (key, value) => setState(
+                      () => setDesignFeatureChoice(designChoices, key, value),
+                    ),
                   ),
                 );
 
@@ -299,11 +300,11 @@ Future<void> showMeasurementDialog(
           CommandButton(id: 'action.save', child: FilledButton(
             onPressed: () async {
               final data = <String, String>{
+                ...values,
                 for (final e in controllers.entries)
-                  if (e.value.text.trim().isNotEmpty)
-                    e.key: e.value.text.trim(),
+                  e.key: e.value.text.trim(),
                 'Additional notes': notes.text.trim(),
-              };
+              }..removeWhere((key, value) => value.isEmpty);
               final savedData = <String, Object?>{
                 ...data,
                 'Design choices': Map<String, bool>.from(designChoices),

@@ -4,17 +4,27 @@ import 'package:flutter/material.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models/garment.dart';
+import '../widgets/design_feature_drawing.dart';
 
 const Map<Garment, List<String>> garmentDesignFeatureKeys = {
   Garment.shalwar: [
+    'roundHem',
+    'straightHem',
+    'plainSleeve',
     'cuff',
     'collar',
-    'belt',
+    'halfBand',
+    'fullBand',
     'frontPlacket',
     'chestPocket',
     'sidePocket',
     'roundNeck',
     'straightNeck',
+    'indianNeck',
+    'shalwarPocket',
+    'plainStitch',
+    'doubleStitch',
+    'specialStitch',
   ],
   Garment.waistcoat: [
     'collar',
@@ -39,6 +49,16 @@ const Map<Garment, List<String>> garmentDesignFeatureKeys = {
 };
 
 String designFeatureLabel(AppLocalizations l10n, String key) => switch (key) {
+  'roundHem' => l10n.designRoundHem,
+  'straightHem' => l10n.designStraightHem,
+  'plainSleeve' => l10n.designPlainSleeve,
+  'halfBand' => l10n.designHalfBand,
+  'fullBand' => l10n.designFullBand,
+  'indianNeck' => l10n.designIndianNeck,
+  'shalwarPocket' => l10n.designShalwarPocket,
+  'plainStitch' => l10n.designPlainStitch,
+  'doubleStitch' => l10n.designDoubleStitch,
+  'specialStitch' => l10n.designSpecialStitch,
   'cuff' => l10n.designCuff,
   'collar' => l10n.designCollar,
   'belt' => l10n.designBelt,
@@ -56,17 +76,26 @@ String designFeatureLabel(AppLocalizations l10n, String key) => switch (key) {
   _ => key,
 };
 
-IconData designFeatureIcon(String key) => switch (key) {
-  'cuff' => Icons.dry_cleaning_outlined,
-  'collar' || 'roundNeck' || 'straightNeck' => Icons.checkroom_outlined,
-  'belt' || 'backBelt' => Icons.straighten_outlined,
-  'frontPlacket' || 'buttons' => Icons.radio_button_checked_outlined,
-  'chestPocket' || 'sidePocket' => Icons.inventory_2_outlined,
-  'lining' => Icons.layers_outlined,
-  'roundedHem' || 'vent' => Icons.gesture_outlined,
-  'lapels' => Icons.style_outlined,
-  _ => Icons.checkroom_outlined,
-};
+// Selecting an alternative clears only the other choices in that same group.
+// Unchecking a choice leaves the group empty rather than inventing a default.
+void setDesignFeatureChoice(Map<String, bool> choices, String key, bool value) {
+  if (value) {
+    for (final group in const [
+      ['roundHem', 'straightHem'],
+      ['plainSleeve', 'cuff'],
+      ['collar', 'halfBand', 'fullBand'],
+      ['roundNeck', 'straightNeck', 'indianNeck'],
+      ['plainStitch', 'doubleStitch', 'specialStitch'],
+    ]) {
+      if (group.contains(key)) {
+        for (final other in group) {
+          if (other != key) choices[other] = false;
+        }
+      }
+    }
+  }
+  choices[key] = value;
+}
 
 Map<String, bool> decodeDesignFeatureChoices(Object? raw) {
   Object? decoded = raw;
@@ -100,53 +129,65 @@ Widget designFeaturePicker(
       const SizedBox(height: 6),
       LayoutBuilder(
         builder: (context, constraints) {
-          final tileWidth = constraints.maxWidth >= 640
+          final tileWidth = constraints.maxWidth >= 260
               ? (constraints.maxWidth - 8) / 2
               : constraints.maxWidth;
           return Wrap(
+            textDirection: TextDirection.ltr,
             spacing: 8,
             runSpacing: 8,
             children: [
               for (final key in keys)
-                Container(
-                  width: tileWidth,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.outlineVariant,
-                    ),
+                Semantics(
+                  label: designFeatureLabel(l10n, key),
+                  checked: choices[key] ?? false,
+                  child: InkWell(
+                    key: ValueKey('design-choice-$key'),
+                    onTap: () => onChanged(key, !(choices[key] ?? false)),
                     borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(designFeatureIcon(key), size: 18),
-                      const SizedBox(width: 7),
-                      Expanded(
-                        child: Text(
-                          designFeatureLabel(l10n, key),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
+                    child: Container(
+                      width: tileWidth,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant,
                         ),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      const SizedBox(width: 4),
-                      ChoiceChip(
-                        label: Text(l10n.optionNo),
-                        selected: !(choices[key] ?? false),
-                        visualDensity: VisualDensity.compact,
-                        onSelected: (_) => onChanged(key, false),
+                      child: Column(
+                        children: [
+                          Row(
+                            textDirection: TextDirection.ltr,
+                            children: [
+                              Expanded(
+                                child: SizedBox(
+                                  height: 48,
+                                  child: FittedBox(
+                                    child: DesignFeatureDrawing(feature: key),
+                                  ),
+                                ),
+                              ),
+                              Checkbox(
+                                value: choices[key] ?? false,
+                                onChanged: (value) =>
+                                    onChanged(key, value ?? false),
+                              ),
+                            ],
+                          ),
+                          SizedBox(
+                            width: double.infinity,
+                            child: Text(
+                              designFeatureLabel(l10n, key),
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 4),
-                      ChoiceChip(
-                        label: Text(l10n.optionYes),
-                        selected: choices[key] ?? false,
-                        visualDensity: VisualDensity.compact,
-                        onSelected: (_) => onChanged(key, true),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
             ],

@@ -796,16 +796,16 @@ class AppLocalizationsPs extends AppLocalizations {
   String get coat => 'کوټ';
 
   @override
-  String get kameezLength => 'د کمیس اوږدوالی';
+  String get kameezLength => 'قد';
 
   @override
-  String get shoulderWidth => 'د اوږې پلنوالی';
+  String get shoulderWidth => 'شانه';
 
   @override
-  String get sleeveLength => 'د لستوڼي اوږدوالی';
+  String get sleeveLength => 'آستین';
 
   @override
-  String get chest => 'سینه';
+  String get chest => 'بغل';
 
   @override
   String get waist => 'ملا';
@@ -814,7 +814,7 @@ class AppLocalizationsPs extends AppLocalizations {
   String get hipSeat => 'املا / ناسته';
 
   @override
-  String get neckCollar => 'غاړه / کالر';
+  String get neckCollar => 'یخن';
 
   @override
   String get neck => 'غاړه';
@@ -826,7 +826,7 @@ class AppLocalizationsPs extends AppLocalizations {
   String get cuffWrist => 'مړوند / لستوڼی';
 
   @override
-  String get shalwarLength => 'د پرتوګ اوږدوالی';
+  String get shalwarLength => 'تنبان';
 
   @override
   String get shalwarWaist => 'د پرتوګ ملا';
@@ -835,7 +835,7 @@ class AppLocalizationsPs extends AppLocalizations {
   String get thigh => 'ورن';
 
   @override
-  String get bottomOpening => 'د پرتوګ پای';
+  String get bottomOpening => 'پاچه';
 
   @override
   String get waistcoatLength => 'د واسکټ اوږدوالی';
@@ -2990,4 +2990,40 @@ class AppLocalizationsPs extends AppLocalizations {
 
   @override
   String get profileLogoPreview => 'د نښې لید';
+
+  @override
+  String get hemWidth => 'دامن';
+
+  @override
+  String get measurementShortHeading => 'اندازه';
+
+  @override
+  String get designRoundHem => 'دامن گول';
+
+  @override
+  String get designStraightHem => 'دامن راست';
+
+  @override
+  String get designPlainSleeve => 'آستین ساده';
+
+  @override
+  String get designHalfBand => 'نیمه بین';
+
+  @override
+  String get designFullBand => 'پوره بین';
+
+  @override
+  String get designIndianNeck => 'یخن هندي';
+
+  @override
+  String get designShalwarPocket => 'د تنبان جیب';
+
+  @override
+  String get designPlainStitch => 'ساده ګنډل';
+
+  @override
+  String get designDoubleStitch => 'دوه ګوني ګنډل';
+
+  @override
+  String get designSpecialStitch => 'ځانګړي ګنډل';
 }

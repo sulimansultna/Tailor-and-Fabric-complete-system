@@ -795,16 +795,16 @@ class AppLocalizationsFa extends AppLocalizations {
   String get coat => 'کت';
 
   @override
-  String get kameezLength => 'قد پیراهن';
+  String get kameezLength => 'قد';
 
   @override
-  String get shoulderWidth => 'پهنای شانه';
+  String get shoulderWidth => 'شانه';
 
   @override
-  String get sleeveLength => 'قد آستین';
+  String get sleeveLength => 'آستین';
 
   @override
-  String get chest => 'سینه';
+  String get chest => 'بغل';
 
   @override
   String get waist => 'کمر';
@@ -813,7 +813,7 @@ class AppLocalizationsFa extends AppLocalizations {
   String get hipSeat => 'باسن';
 
   @override
-  String get neckCollar => 'گردن / یخن';
+  String get neckCollar => 'یخن';
 
   @override
   String get neck => 'گردن';
@@ -825,7 +825,7 @@ class AppLocalizationsFa extends AppLocalizations {
   String get cuffWrist => 'مچ / سرآستین';
 
   @override
-  String get shalwarLength => 'قد تنبان';
+  String get shalwarLength => 'تنبان';
 
   @override
   String get shalwarWaist => 'کمر تنبان';
@@ -834,7 +834,7 @@ class AppLocalizationsFa extends AppLocalizations {
   String get thigh => 'ران';
 
   @override
-  String get bottomOpening => 'دهانهٔ پایین';
+  String get bottomOpening => 'پاچه';
 
   @override
   String get waistcoatLength => 'قد واسکت';
@@ -2984,6 +2984,42 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get profileLogoPreview => 'پیش‌نمایش نشان';
+
+  @override
+  String get hemWidth => 'دامن';
+
+  @override
+  String get measurementShortHeading => 'اندازه';
+
+  @override
+  String get designRoundHem => 'دامن گول';
+
+  @override
+  String get designStraightHem => 'دامن راست';
+
+  @override
+  String get designPlainSleeve => 'آستین ساده';
+
+  @override
+  String get designHalfBand => 'نیمه بین';
+
+  @override
+  String get designFullBand => 'پوره بین';
+
+  @override
+  String get designIndianNeck => 'یخن هندی';
+
+  @override
+  String get designShalwarPocket => 'جیب تنبان';
+
+  @override
+  String get designPlainStitch => 'دوخت ساده';
+
+  @override
+  String get designDoubleStitch => 'دوخت دوگانه';
+
+  @override
+  String get designSpecialStitch => 'دوخت مخصوص';
 }
 
 /// The translations for Persian, as used in Afghanistan (`fa_AF`).
@@ -3776,16 +3812,16 @@ class AppLocalizationsFaAf extends AppLocalizationsFa {
   String get coat => 'کت';
 
   @override
-  String get kameezLength => 'قد پیراهن';
+  String get kameezLength => 'قد';
 
   @override
-  String get shoulderWidth => 'پهنای شانه';
+  String get shoulderWidth => 'شانه';
 
   @override
-  String get sleeveLength => 'قد آستین';
+  String get sleeveLength => 'آستین';
 
   @override
-  String get chest => 'سینه';
+  String get chest => 'بغل';
 
   @override
   String get waist => 'کمر';
@@ -3794,7 +3830,7 @@ class AppLocalizationsFaAf extends AppLocalizationsFa {
   String get hipSeat => 'باسن';
 
   @override
-  String get neckCollar => 'گردن / یخن';
+  String get neckCollar => 'یخن';
 
   @override
   String get neck => 'گردن';
@@ -3806,7 +3842,7 @@ class AppLocalizationsFaAf extends AppLocalizationsFa {
   String get cuffWrist => 'مچ / سرآستین';
 
   @override
-  String get shalwarLength => 'قد تنبان';
+  String get shalwarLength => 'تنبان';
 
   @override
   String get shalwarWaist => 'کمر تنبان';
@@ -3815,7 +3851,7 @@ class AppLocalizationsFaAf extends AppLocalizationsFa {
   String get thigh => 'ران';
 
   @override
-  String get bottomOpening => 'دهانهٔ پایین';
+  String get bottomOpening => 'پاچه';
 
   @override
   String get waistcoatLength => 'قد واسکت';
@@ -5962,4 +5998,40 @@ class AppLocalizationsFaAf extends AppLocalizationsFa {
 
   @override
   String get profileLogoPreview => 'پیش‌نمایش نشان';
+
+  @override
+  String get hemWidth => 'دامن';
+
+  @override
+  String get measurementShortHeading => 'اندازه';
+
+  @override
+  String get designRoundHem => 'دامن گول';
+
+  @override
+  String get designStraightHem => 'دامن راست';
+
+  @override
+  String get designPlainSleeve => 'آستین ساده';
+
+  @override
+  String get designHalfBand => 'نیمه بین';
+
+  @override
+  String get designFullBand => 'پوره بین';
+
+  @override
+  String get designIndianNeck => 'یخن هندی';
+
+  @override
+  String get designShalwarPocket => 'جیب تنبان';
+
+  @override
+  String get designPlainStitch => 'دوخت ساده';
+
+  @override
+  String get designDoubleStitch => 'دوخت دوگانه';
+
+  @override
+  String get designSpecialStitch => 'دوخت مخصوص';
 }

@@ -1580,13 +1580,13 @@ abstract class AppLocalizations {
   /// No description provided for @kameezLength.
   ///
   /// In en, this message translates to:
-  /// **'Kameez length'**
+  /// **'Shirt length'**
   String get kameezLength;
 
   /// No description provided for @shoulderWidth.
   ///
   /// In en, this message translates to:
-  /// **'Shoulder width'**
+  /// **'Shoulder'**
   String get shoulderWidth;
 
   /// No description provided for @sleeveLength.
@@ -1616,7 +1616,7 @@ abstract class AppLocalizations {
   /// No description provided for @neckCollar.
   ///
   /// In en, this message translates to:
-  /// **'Neck / collar'**
+  /// **'Collar'**
   String get neckCollar;
 
   /// No description provided for @neck.
@@ -1658,7 +1658,7 @@ abstract class AppLocalizations {
   /// No description provided for @bottomOpening.
   ///
   /// In en, this message translates to:
-  /// **'Bottom opening'**
+  /// **'Leg opening'**
   String get bottomOpening;
 
   /// No description provided for @waistcoatLength.
@@ -5656,6 +5656,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Logo preview'**
   String get profileLogoPreview;
+
+  /// No description provided for @hemWidth.
+  ///
+  /// In en, this message translates to:
+  /// **'Hem width'**
+  String get hemWidth;
+
+  /// No description provided for @measurementShortHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Size'**
+  String get measurementShortHeading;
+
+  /// No description provided for @designRoundHem.
+  ///
+  /// In en, this message translates to:
+  /// **'Round hem'**
+  String get designRoundHem;
+
+  /// No description provided for @designStraightHem.
+  ///
+  /// In en, this message translates to:
+  /// **'Straight hem'**
+  String get designStraightHem;
+
+  /// No description provided for @designPlainSleeve.
+  ///
+  /// In en, this message translates to:
+  /// **'Plain sleeve'**
+  String get designPlainSleeve;
+
+  /// No description provided for @designHalfBand.
+  ///
+  /// In en, this message translates to:
+  /// **'Half band'**
+  String get designHalfBand;
+
+  /// No description provided for @designFullBand.
+  ///
+  /// In en, this message translates to:
+  /// **'Full band'**
+  String get designFullBand;
+
+  /// No description provided for @designIndianNeck.
+  ///
+  /// In en, this message translates to:
+  /// **'Indian neck'**
+  String get designIndianNeck;
+
+  /// No description provided for @designShalwarPocket.
+  ///
+  /// In en, this message translates to:
+  /// **'Shalwar pocket'**
+  String get designShalwarPocket;
+
+  /// No description provided for @designPlainStitch.
+  ///
+  /// In en, this message translates to:
+  /// **'Plain stitching'**
+  String get designPlainStitch;
+
+  /// No description provided for @designDoubleStitch.
+  ///
+  /// In en, this message translates to:
+  /// **'Double stitching'**
+  String get designDoubleStitch;
+
+  /// No description provided for @designSpecialStitch.
+  ///
+  /// In en, this message translates to:
+  /// **'Special stitching'**
+  String get designSpecialStitch;
 }
 
 class _AppLocalizationsDelegate

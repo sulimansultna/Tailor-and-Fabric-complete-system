@@ -43,6 +43,7 @@ extension AppLocalizationsLabels on AppLocalizations {
     'Shoulder width' => shoulderWidth,
     'Sleeve length' => sleeveLength,
     'Chest' => chest,
+    'Hem width' => hemWidth,
     'Waist' => waist,
     'Hip / seat' => hipSeat,
     'Neck / collar' => neckCollar,

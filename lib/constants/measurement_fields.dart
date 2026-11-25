@@ -3,18 +3,13 @@ import '../models/garment.dart';
 const Map<Garment, List<(String, String)>> measurementFields = {
   Garment.shalwar: [
     ('Kameez length', 'Finished garment length'),
-    ('Shoulder width', 'Width'),
     ('Sleeve length', 'Finished sleeve length'),
-    ('Chest', 'Circumference'),
-    ('Waist', 'Circumference'),
-    ('Hip / seat', 'Circumference'),
+    ('Shoulder width', 'Width'),
     ('Neck / collar', 'Circumference'),
-    ('Upper arm', 'Circumference'),
-    ('Cuff / wrist', 'Circumference'),
+    ('Chest', 'Circumference'),
+    ('Hem width', 'Width'),
     ('Shalwar length', 'Finished garment length'),
-    ('Shalwar waist', 'Circumference'),
-    ('Thigh', 'Circumference'),
-    ('Bottom opening', 'Circumference'),
+    ('Bottom opening', 'Width'),
   ],
   Garment.waistcoat: [
     ('Waistcoat length', 'Finished garment length'),

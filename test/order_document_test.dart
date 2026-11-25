@@ -41,6 +41,61 @@ void main() {
 
   for (final locale in ['en', 'ps', 'fa-AF']) {
     test(
+      'eight clothes measurements and picture choices print in $locale',
+      () async {
+        final customerId = await database.addCustomer(
+          name: 'Ahmad Khan',
+          phone: '0700123456',
+        );
+        final orderId = await database.createOrderWithId(
+          customerId: customerId,
+          total: 10000,
+          advance: 0,
+          lines: [
+            {
+              'garment': 'shalwar',
+              'quantity': 1,
+              'price_each': 10000,
+              'measurement_unit': 'in',
+              'measurement_snapshot': jsonEncode({
+                'Kameez length': '40',
+                'Sleeve length': '24',
+                'Shoulder width': '18',
+                'Neck / collar': '16',
+                'Chest': '22',
+                'Hem width': '25',
+                'Shalwar length': '39',
+                'Bottom opening': '8',
+              }),
+              'style': jsonEncode({
+                'features': {
+                  'roundHem': true,
+                  'cuff': true,
+                  'fullBand': true,
+                  'frontPlacket': true,
+                  'chestPocket': true,
+                  'sidePocket': true,
+                  'indianNeck': true,
+                  'doubleStitch': true,
+                },
+              }),
+            },
+          ],
+        );
+        for (final paper in ['55mm', '80mm']) {
+          final bytes = await buildOrderDocumentPdf(
+            database,
+            orderId,
+            kind: OrderDocumentKind.measurements,
+            locale: locale,
+            paperSize: paper,
+          );
+          expect(pageCount(bytes), 1);
+          await savePreview('clothes-measurements-$locale-$paper', bytes);
+        }
+      },
+    );
+    test(
       'saved thermal sizes control both document widths in $locale',
       () async {
         final customerId = await database.addCustomer(

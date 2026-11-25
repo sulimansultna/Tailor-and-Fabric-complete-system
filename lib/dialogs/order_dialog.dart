@@ -1193,6 +1193,7 @@ Future<void> showOrderDialog(
                                                     .text
                                                     .trim(),
                                                 'features': {
+                                                  ...row.designChoices,
                                                   for (final key
                                                       in garmentDesignFeatureKeys[row
                                                               .garment] ??
@@ -1368,7 +1369,8 @@ Future<_OrderMeasurementsResult?> _reviewOrderMeasurements(
   final fields = measurementFields[garment] ?? const <(String, String)>[];
   final names = [
     ...fields.map((entry) => entry.$1),
-    ...values.keys.where((key) => !fields.any((entry) => entry.$1 == key)),
+    if (garment != Garment.shalwar)
+      ...values.keys.where((key) => !fields.any((entry) => entry.$1 == key)),
   ];
   if (!names.contains('Additional notes')) names.add('Additional notes');
   final controllers = <String, TextEditingController>{
@@ -1394,6 +1396,8 @@ Future<_OrderMeasurementsResult?> _reviewOrderMeasurements(
           locale: Localizations.localeOf(context).toLanguageTag(),
         );
   Map<String, String> currentValues() => {
+    for (final entry in values.entries)
+      if (!controllers.containsKey(entry.key)) entry.key: entry.value,
     for (final entry in controllers.entries)
       if (entry.value.text.trim().isNotEmpty)
         entry.key: entry.value.text.trim(),
@@ -1561,6 +1565,15 @@ Future<_OrderMeasurementsResult?> _reviewOrderMeasurements(
                     MeasurementFormLayout(
                       garment: garment,
                       measurements: measurementPanel(),
+                      design: designFeaturePicker(
+                        dialogContext,
+                        l10n: l10n,
+                        garment: garment,
+                        choices: choices,
+                        onChanged: (key, value) => setState(
+                          () => setDesignFeatureChoice(choices, key, value),
+                        ),
+                      ),
                     ),
                   ],
                 ),

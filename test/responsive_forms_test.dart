@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -115,6 +117,23 @@ void main() {
       await tester.enterText(field(l10n.quantity), '2');
       await tester.enterText(field(l10n.pricePerItem), '1250');
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text(l10n.reviewMeasurements));
+      await tester.tap(find.text(l10n.reviewMeasurements));
+      await tester.pumpAndSettle();
+      final hemField = find
+          .byWidgetPredicate(
+            (widget) =>
+                widget is TextField && widget.decoration?.suffixText == 'in',
+          )
+          .at(5);
+      await tester.ensureVisible(hemField);
+      await tester.enterText(hemField, '25');
+      final roundHem = find.byKey(const ValueKey('design-choice-roundHem'));
+      await tester.ensureVisible(roundHem);
+      await tester.tap(roundHem);
+      await tester.pump();
+      await tester.tap(find.text(l10n.useMeasurementsForOrder));
+      await tester.pumpAndSettle();
       await resize(tester, () {
         expect(
           tester.widget<TextField>(field(l10n.quantity)).controller!.text,
@@ -134,12 +153,30 @@ void main() {
       await tester.pumpAndSettle();
       final drafts = (await tester.runAsync(() => database.orderDrafts()))!;
       expect(drafts, hasLength(1));
+      final draftData = jsonDecode(drafts.single['payload'] as String) as Map;
+      final line = (draftData['lines'] as List).single as Map;
+      expect(line['snapshot']['Hem width'], '25');
+      expect(line['designChoices']['roundHem'], isTrue);
+      expect(
+        await tester.runAsync(
+          () => database.measurements(customer['id'] as int, 'shalwar'),
+        ),
+        isEmpty,
+      );
       expect(tester.takeException(), isNull);
     });
 
     testWidgets(
       'measurements retain input and physical-left drawing in $locale',
       (tester) async {
+        Map<String, Object?>? savedProfile = {
+          'profile_name': 'Standard',
+          'unit': 'in',
+          'data': jsonEncode({
+            'Upper arm': '13',
+            'Design choices': {'belt': true},
+          }),
+        };
         await open(
           tester,
           locale,
@@ -148,6 +185,7 @@ void main() {
             database,
             customer,
             Garment.shalwar,
+            existing: savedProfile,
             onSaved: () async {},
           ),
         );
@@ -160,6 +198,30 @@ void main() {
                   widget is TextField && widget.decoration?.suffixText == 'in',
             )
             .first;
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is TextField && widget.decoration?.suffixText == 'in',
+          ),
+          findsNWidgets(8),
+        );
+        final roundHem = find.byKey(const ValueKey('design-choice-roundHem'));
+        final straightHem = find.byKey(
+          const ValueKey('design-choice-straightHem'),
+        );
+        await tester.ensureVisible(roundHem);
+        await tester.tap(roundHem);
+        await tester.pump();
+        await tester.ensureVisible(straightHem);
+        await tester.tap(straightHem);
+        await tester.pump();
+        bool checked(Finder tile) => tester
+            .widget<Checkbox>(
+              find.descendant(of: tile, matching: find.byType(Checkbox)),
+            )
+            .value!;
+        expect(checked(roundHem), isFalse);
+        expect(checked(straightHem), isTrue);
         await tester.ensureVisible(numeric);
         await tester.enterText(numeric, '39.5');
         await tester.pump();
@@ -185,6 +247,18 @@ void main() {
           () => database.measurements(customer['id'] as int, 'shalwar'),
         ))!;
         expect(profiles.single['data'], contains('39.5'));
+        final data = jsonDecode(profiles.single['data'] as String) as Map;
+        expect(data['Upper arm'], '13');
+        expect(data['Design choices']['straightHem'], isTrue);
+        expect(data['Design choices']['roundHem'], isFalse);
+        expect(data['Design choices']['belt'], isTrue);
+        savedProfile = profiles.single;
+        await tester.tap(find.text('Open form'));
+        await tester.pumpAndSettle();
+        expect(checked(straightHem), isTrue);
+        expect(tester.widget<TextField>(numeric).controller!.text, '39.5');
+        await tester.tap(find.text(l10n.cancel));
+        await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       },
     );

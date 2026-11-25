@@ -11,6 +11,7 @@ import 'package:printing/printing.dart';
 
 import '../constants/measurement_fields.dart';
 import '../constants/design_features.dart';
+import '../constants/design_feature_art.dart';
 import '../core/formatters.dart';
 import '../data/shop_database.dart';
 import '../l10n/app_localizations_extensions.dart';
@@ -448,21 +449,45 @@ class _OrderDocumentPreviewDialogState
   }
 }
 
-pw.Widget _sheetCell(String value) => pw.Padding(
-  padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2.5),
+pw.Widget _sheetCell(String value, {bool compact = false}) => pw.Padding(
+  padding: pw.EdgeInsets.symmetric(horizontal: compact ? 2 : 4, vertical: 2.5),
   child: pw.Text(
     value,
     tightBounds: true,
-    style: const pw.TextStyle(fontSize: 8),
+    style: pw.TextStyle(fontSize: compact ? 7 : 8),
   ),
 );
 
-pw.Widget _sheetHeaderCell(String value) => pw.Padding(
-  padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+pw.Widget _sheetHeaderCell(String value, {bool compact = false}) => pw.Padding(
+  padding: pw.EdgeInsets.symmetric(horizontal: compact ? 2 : 4, vertical: 3),
   child: pw.Text(
     value,
+    textDirection: _documentTextDirection(value),
     tightBounds: true,
-    style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+    style: pw.TextStyle(
+      fontSize: compact ? 7 : 8,
+      fontWeight: pw.FontWeight.bold,
+    ),
+  ),
+);
+
+pw.Widget _uniformMeasurementCell(
+  String value, {
+  required bool rtl,
+  bool numeric = false,
+}) => pw.Container(
+  height: 20,
+  padding: const pw.EdgeInsets.symmetric(horizontal: 4),
+  alignment: numeric
+      ? pw.Alignment.center
+      : rtl
+      ? pw.Alignment.centerRight
+      : pw.Alignment.centerLeft,
+  child: pw.Text(
+    value,
+    textDirection: numeric ? pw.TextDirection.ltr : null,
+    tightBounds: true,
+    style: const pw.TextStyle(fontSize: 9),
   ),
 );
 
@@ -472,6 +497,8 @@ pw.Table _workSlipTable({
   required Iterable<(String, String)> values,
   required bool rtl,
   bool numericValues = false,
+  bool compact = false,
+  bool uniformRows = false,
 }) {
   List<pw.Widget> cells(pw.Widget label, pw.Widget value) =>
       rtl ? [value, label] : [label, value];
@@ -487,31 +514,37 @@ pw.Table _workSlipTable({
         repeat: true,
         decoration: const pw.BoxDecoration(color: PdfColors.grey200),
         children: cells(
-          _sheetHeaderCell(heading),
-          _sheetHeaderCell(valueHeading),
+          _sheetHeaderCell(heading, compact: compact),
+          _sheetHeaderCell(valueHeading, compact: compact),
         ),
       ),
       for (final (label, value) in values)
         pw.TableRow(
           verticalAlignment: pw.TableCellVerticalAlignment.middle,
           children: cells(
-            _sheetCell(label),
-            pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(
-                horizontal: 4,
-                vertical: 3,
-              ),
-              child: pw.Text(
-                value,
-                tightBounds: true,
-                textAlign: pw.TextAlign.center,
-                textDirection: numericValues ? pw.TextDirection.ltr : null,
-                style: pw.TextStyle(
-                  fontSize: 9,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-            ),
+            uniformRows
+                ? _uniformMeasurementCell(label, rtl: rtl)
+                : _sheetCell(label, compact: compact),
+            uniformRows
+                ? _uniformMeasurementCell(value, rtl: rtl, numeric: true)
+                : pw.Padding(
+                    padding: pw.EdgeInsets.symmetric(
+                      horizontal: compact ? 2 : 4,
+                      vertical: 3,
+                    ),
+                    child: pw.Text(
+                      value,
+                      tightBounds: true,
+                      textAlign: pw.TextAlign.center,
+                      textDirection: numericValues
+                          ? pw.TextDirection.ltr
+                          : null,
+                      style: pw.TextStyle(
+                        fontSize: compact ? 8 : 9,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ),
           ),
         ),
     ],
@@ -547,6 +580,80 @@ Iterable<pw.Widget> _workSlipInstructions(String label, String value) sync* {
   yield pw.SizedBox(height: 6);
 }
 
+pw.Widget _workSlipDesignGrid({
+  required Garment garment,
+  required Map<String, bool> features,
+  required AppLocalizations l10n,
+  required bool rtl,
+}) {
+  final keys = garmentDesignFeatureKeys[garment] ?? const <String>[];
+  const columns = 3;
+  return pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+    children: [
+      _sheetHeaderCell(l10n.designChoices),
+      pw.Table(
+        border: pw.TableBorder.all(width: .45),
+        defaultColumnWidth: const pw.FlexColumnWidth(),
+        children: [
+          for (var index = 0; index < keys.length; index += columns)
+            pw.TableRow(
+              children: [
+                for (var offset = 0; offset < columns; offset++)
+                  if (index + offset < keys.length)
+                    pw.Container(
+                      height: 38,
+                      padding: const pw.EdgeInsets.all(2),
+                      child: pw.Column(
+                        children: [
+                          pw.Directionality(
+                            textDirection: pw.TextDirection.ltr,
+                            child: pw.Row(
+                              mainAxisAlignment:
+                                  pw.MainAxisAlignment.spaceBetween,
+                              children: [
+                                pw.Expanded(
+                                  child: pw.SvgImage(
+                                    svg: designFeatureSvg(keys[index + offset]),
+                                    height: 18,
+                                    fit: pw.BoxFit.contain,
+                                  ),
+                                ),
+                                pw.SvgImage(
+                                  width: 7,
+                                  height: 7,
+                                  svg:
+                                      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12">'
+                                      '<rect x="1" y="1" width="10" height="10" fill="none" stroke="#000000"/>'
+                                      '${features[keys[index + offset]] == true ? '<path d="M3 6 L5 9 L9 3" fill="none" stroke="#000000" stroke-width="1.5"/>' : ''}'
+                                      '</svg>',
+                                ),
+                              ],
+                            ),
+                          ),
+                          pw.SizedBox(height: 2),
+                          pw.Text(
+                            designFeatureLabel(l10n, keys[index + offset]),
+                            textDirection: rtl
+                                ? pw.TextDirection.rtl
+                                : pw.TextDirection.ltr,
+                            textAlign: pw.TextAlign.center,
+                            tightBounds: true,
+                            style: const pw.TextStyle(fontSize: 6),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    pw.SizedBox(height: 38),
+              ],
+            ),
+        ],
+      ),
+    ],
+  );
+}
+
 void _addMeasurementSheet(
   pw.Document document, {
   required Map<String, Object?> order,
@@ -569,10 +676,23 @@ void _addMeasurementSheet(
           in measurementFields[garment] ?? const <(String, String)>[])
         field.$1,
     ];
-    names.addAll(
-      snapshot.keys.where(
-        (name) => name != 'Additional notes' && !names.contains(name),
+    final additionalNames = snapshot.keys
+        .where((name) => name != 'Additional notes' && !names.contains(name))
+        .toList();
+    final measurementTable = _workSlipTable(
+      heading: l10n.measurementShortHeading,
+      valueHeading: unit,
+      values: names.map(
+        (name) => (
+          l10n.measurementLabel(name),
+          (snapshot[name]?.trim().isNotEmpty ?? false)
+              ? snapshot[name]!.trim()
+              : '-',
+        ),
       ),
+      rtl: rtl,
+      numericValues: true,
+      uniformRows: true,
     );
     rows.addAll([
       if (index > 0) pw.NewPage(),
@@ -592,37 +712,49 @@ void _addMeasurementSheet(
           ],
         ),
       ),
-      // Tables must be direct MultiPage children so every row can flow to the
-      // next page. Nesting both tables in a garment container hid long slips.
-      _workSlipTable(
-        heading: l10n.measurementsHeading,
-        valueHeading: unit,
-        values: names.map(
-          (name) => (
-            l10n.measurementLabel(name),
-            (snapshot[name]?.trim().isNotEmpty ?? false)
-                ? snapshot[name]!.trim()
-                : '-',
+      measurementTable,
+      pw.SizedBox(height: 5),
+      // Clothes slips show only the eight standard measurements, in order.
+      // Other garments can still print their custom measurement fields.
+      if (garment != Garment.shalwar && additionalNames.isNotEmpty)
+        _workSlipTable(
+          heading: l10n.measurementsHeading,
+          valueHeading: unit,
+          values: additionalNames.map(
+            (name) => (l10n.measurementLabel(name), snapshot[name]!),
           ),
+          rtl: rtl,
+          numericValues: true,
         ),
-        rtl: rtl,
-        numericValues: true,
-      ),
-      pw.SizedBox(height: 6),
-      _workSlipTable(
-        heading: l10n.designChoices,
-        valueHeading: l10n.measurementValue,
-        values: [
-          for (final key
-              in garmentDesignFeatureKeys[garment] ?? const <String>[])
-            (
-              designFeatureLabel(l10n, key),
-              features[key] == true ? l10n.optionYes : l10n.optionNo,
-            ),
-        ],
+      pw.SizedBox(height: 5),
+      _workSlipDesignGrid(
+        garment: garment,
+        features: features,
+        l10n: l10n,
         rtl: rtl,
       ),
       pw.SizedBox(height: 5),
+      if (features.entries.any(
+        (entry) =>
+            entry.value &&
+            !(garmentDesignFeatureKeys[garment]?.contains(entry.key) ?? false),
+      ))
+        _workSlipTable(
+          heading: l10n.designChoices,
+          valueHeading: l10n.measurementValue,
+          values: features.entries
+              .where(
+                (entry) =>
+                    entry.value &&
+                    !(garmentDesignFeatureKeys[garment]?.contains(entry.key) ??
+                        false),
+              )
+              .map(
+                (entry) =>
+                    (designFeatureLabel(l10n, entry.key), l10n.optionYes),
+              ),
+          rtl: rtl,
+        ),
     ]);
     for (final (label, value) in [
       (l10n.additionalNotes, snapshot['Additional notes']),
