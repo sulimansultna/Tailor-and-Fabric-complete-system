@@ -100,7 +100,7 @@ void main() {
     test(
       'Pashto and Dari month names and secondary calendar labels are readable',
       () {
-        expect(CalendarService.solarMonthName(1, 'ps'), 'وری');
+        expect(CalendarService.solarMonthName(1, 'ps'), 'حمل');
         expect(CalendarService.solarMonthName(1, 'fa_AF'), 'حمل');
         expect(
           CalendarService.format(
@@ -117,7 +117,7 @@ void main() {
         CalendarService.showBothDates = true;
         expect(
           CalendarService.formatActive(DateTime(2025, 3, 21), locale: 'ps'),
-          contains('لمریز: 1 وری 1404'),
+          contains('لمریز: 1 حمل 1404'),
         );
         CalendarService.activeCalendar = oldCalendar;
         CalendarService.showBothDates = oldBoth;
